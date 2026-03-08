@@ -1,0 +1,43 @@
+'use client';
+
+import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useBackup } from '@/hooks/useBackups';
+import { api } from '@/lib/api';
+import type { Backup } from '@/lib/types';
+import { useToast } from '@/components/ui/Toast';
+import PageContainer from '@/components/PageContainer';
+import Card from '@/components/ui/Card';
+import BackupForm from '@/components/domain/BackupForm';
+
+export default function EditBackupPage() {
+  const params = useParams();
+  const id = Number(params.id);
+  const router = useRouter();
+  const { addToast } = useToast();
+  const { data: backup, loading: fetching, error } = useBackup(id);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (data: Partial<Backup>) => {
+    setSaving(true);
+    try {
+      await api.updateBackup(id, data);
+      addToast('success', 'Backup updated successfully');
+      router.push(`/backups/${id}`);
+    } catch {
+      addToast('error', 'Failed to update backup');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <PageContainer title="Edit Backup" loading={fetching} error={error}>
+      {backup && (
+        <Card>
+          <BackupForm initialData={backup} onSubmit={handleSubmit} loading={saving} />
+        </Card>
+      )}
+    </PageContainer>
+  );
+}

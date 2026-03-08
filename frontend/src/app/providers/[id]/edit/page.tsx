@@ -1,0 +1,49 @@
+'use client';
+
+import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import PageContainer from '@/components/PageContainer';
+import Card from '@/components/ui/Card';
+import ProviderForm from '@/components/domain/ProviderForm';
+import { useToast } from '@/components/ui/Toast';
+import { useProvider } from '@/hooks/useProviders';
+import { api } from '@/lib/api';
+
+export default function EditProviderPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { addToast } = useToast();
+  const id = Number(params.id);
+  const { data: provider, loading: loadingProvider, error } = useProvider(id);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (data: { name: string; website: string; support_contact: string; notes: string }) => {
+    setSaving(true);
+    try {
+      await api.updateProvider(id, data);
+      addToast('success', 'Provider updated successfully.');
+      router.push(`/providers/${id}`);
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to update provider.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <PageContainer
+      title={provider ? `Edit ${provider.name}` : 'Edit Provider'}
+      loading={loadingProvider}
+      error={error}
+    >
+      {provider && (
+        <Card className="max-w-2xl">
+          <ProviderForm
+            initialData={provider}
+            onSubmit={handleSubmit}
+            loading={saving}
+          />
+        </Card>
+      )}
+    </PageContainer>
+  );
+}

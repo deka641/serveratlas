@@ -36,6 +36,15 @@ class ServerCRUD(CRUDBase[Server]):
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_with_provider(self, db: AsyncSession, id: int) -> Server | None:
+        stmt = (
+            select(Server)
+            .where(Server.id == id)
+            .options(selectinload(Server.provider))
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_detail(self, db: AsyncSession, id: int) -> Server | None:
         stmt = (
             select(Server)

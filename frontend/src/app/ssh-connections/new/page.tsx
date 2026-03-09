@@ -28,7 +28,7 @@ export default function NewSshConnectionPage() {
   };
 
   return (
-    <PageContainer title="New SSH Connection">
+    <PageContainer title="New SSH Connection" breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: 'New SSH Connection' }]}>
       <Card>
         <SshConnectionForm onSubmit={handleSubmit} loading={loading} />
       </Card>

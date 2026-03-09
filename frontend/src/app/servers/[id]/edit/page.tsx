@@ -35,6 +35,7 @@ export default function EditServerPage() {
   return (
     <PageContainer
       title={server ? `Edit ${server.name}` : 'Edit Server'}
+      breadcrumbs={[{ label: 'Servers', href: '/servers' }, { label: server?.name ?? 'Server', href: `/servers/${id}` }, { label: 'Edit' }]}
       loading={serverLoading}
       error={error}
     >

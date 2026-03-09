@@ -28,7 +28,7 @@ export default function NewBackupPage() {
   };
 
   return (
-    <PageContainer title="New Backup">
+    <PageContainer title="New Backup" breadcrumbs={[{ label: 'Backups', href: '/backups' }, { label: 'New Backup' }]}>
       <Card>
         <BackupForm onSubmit={handleSubmit} loading={loading} />
       </Card>

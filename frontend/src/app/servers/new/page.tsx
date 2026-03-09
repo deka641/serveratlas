@@ -28,7 +28,7 @@ export default function NewServerPage() {
   }
 
   return (
-    <PageContainer title="Add Server">
+    <PageContainer title="Add Server" breadcrumbs={[{ label: 'Servers', href: '/servers' }, { label: 'Add Server' }]}>
       <Card>
         <ServerForm onSubmit={handleSubmit} loading={loading} />
       </Card>

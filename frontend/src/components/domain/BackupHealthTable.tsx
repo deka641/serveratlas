@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { RecentBackup, BackupStatus } from '@/lib/types';
+import { formatDateTime } from '@/lib/formatters';
 import Table, { Column } from '@/components/ui/Table';
 import StatusBadge from '@/components/ui/StatusBadge';
 
@@ -42,7 +43,7 @@ export default function BackupHealthTable({ backups }: BackupHealthTableProps) {
       key: 'last_run_at',
       label: 'Last Run',
       render: (b) =>
-        b.last_run_at ? new Date(b.last_run_at).toLocaleString() : 'Never',
+        b.last_run_at ? formatDateTime(b.last_run_at) : 'Never',
     },
   ];
 

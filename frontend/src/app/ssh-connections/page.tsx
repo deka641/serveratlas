@@ -39,7 +39,7 @@ export default function SshConnectionsPage() {
       ) : (
         <EmptyState
           message="No SSH connections found"
-          description="Add your first SSH connection to get started."
+          description="Get started by adding your first SSH connection."
         />
       )}
     </PageContainer>

@@ -32,6 +32,7 @@ export default function EditProviderPage() {
   return (
     <PageContainer
       title={provider ? `Edit ${provider.name}` : 'Edit Provider'}
+      breadcrumbs={[{ label: 'Providers', href: '/providers' }, { label: provider?.name ?? 'Provider', href: `/providers/${id}` }, { label: 'Edit' }]}
       loading={loadingProvider}
       error={error}
     >

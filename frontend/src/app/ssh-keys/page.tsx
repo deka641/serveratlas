@@ -39,7 +39,7 @@ export default function SshKeysPage() {
       ) : (
         <EmptyState
           message="No SSH keys found"
-          description="Add your first SSH key to get started."
+          description="Get started by adding your first SSH key."
         />
       )}
     </PageContainer>

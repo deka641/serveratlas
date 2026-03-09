@@ -26,7 +26,7 @@ export default function ProvidersPage() {
       ) : (
         <EmptyState
           message="No providers yet"
-          description="Add your first hosting provider to get started."
+          description="Get started by adding your first provider."
           actionLabel="Add Provider"
           onAction={() => {
             window.location.href = '/providers/new';

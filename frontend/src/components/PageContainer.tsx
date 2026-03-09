@@ -1,15 +1,22 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import Link from 'next/link';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import { useMobileSidebar } from '@/components/MobileSidebarContext';
+
+export interface Breadcrumb {
+  label: string;
+  href?: string;
+}
 
 interface PageContainerProps {
   title: string;
   action?: ReactNode;
   loading?: boolean;
   error?: string | null;
+  breadcrumbs?: Breadcrumb[];
   children: ReactNode;
 }
 
@@ -18,14 +25,35 @@ export default function PageContainer({
   action,
   loading = false,
   error = null,
+  breadcrumbs,
   children,
 }: PageContainerProps) {
   const openSidebar = useMobileSidebar();
+
+  useEffect(() => {
+    document.title = title ? `${title} | ServerAtlas` : 'ServerAtlas';
+  }, [title]);
 
   return (
     <div className="flex flex-1 flex-col">
       <Header title={title} onMenuClick={openSidebar ?? undefined}>{action}</Header>
       <main className="flex-1 p-4 sm:p-6">
+        {breadcrumbs && breadcrumbs.length > 0 && (
+          <nav className="mb-4 flex items-center gap-1.5 text-sm text-gray-500">
+            {breadcrumbs.map((crumb, i) => (
+              <span key={i} className="flex items-center gap-1.5">
+                {i > 0 && <span className="text-gray-300">/</span>}
+                {crumb.href ? (
+                  <Link href={crumb.href} className="hover:text-gray-700 hover:underline">
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className="text-gray-900">{crumb.label}</span>
+                )}
+              </span>
+            ))}
+          </nav>
+        )}
         {loading ? (
           <div className="flex h-64 items-center justify-center">
             <LoadingSpinner size="lg" />

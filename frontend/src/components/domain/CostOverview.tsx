@@ -2,14 +2,10 @@
 
 import type { CostSummary } from '@/lib/types';
 import Card from '@/components/ui/Card';
+import { formatCost } from '@/lib/formatters';
 
 interface CostOverviewProps {
   costSummary: CostSummary;
-}
-
-function formatCost(amount: number | string, currency?: string): string {
-  const sym = currency ?? 'EUR';
-  return `${Number(amount).toFixed(2)} ${sym}`;
 }
 
 export default function CostOverview({ costSummary }: CostOverviewProps) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, ReactNode } from 'react';
+import { useState, useCallback, useMemo, ReactNode } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -43,6 +43,25 @@ export default function Table<T extends object>({
     },
     [sortColumn, sortDirection, onSort]
   );
+
+  const sortedData = useMemo(() => {
+    if (!sortColumn) return data;
+    return [...data].sort((a, b) => {
+      const aVal = (a as Record<string, unknown>)[sortColumn];
+      const bVal = (b as Record<string, unknown>)[sortColumn];
+      // Null/undefined always last
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      let cmp = 0;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        cmp = aVal - bVal;
+      } else {
+        cmp = String(aVal).localeCompare(String(bVal));
+      }
+      return sortDirection === 'desc' ? -cmp : cmp;
+    });
+  }, [data, sortColumn, sortDirection]);
 
   const getKey = (item: T, index: number): string | number => {
     if (keyExtractor) return keyExtractor(item);
@@ -104,7 +123,7 @@ export default function Table<T extends object>({
           </tr>
         </thead>
         <tbody>
-          {data.map((item, index) => (
+          {sortedData.map((item, index) => (
             <tr
               key={getKey(item, index)}
               className="border-b border-gray-100 transition-colors hover:bg-gray-50"

@@ -7,6 +7,7 @@ import { useBackup } from '@/hooks/useBackups';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
 import PageContainer from '@/components/PageContainer';
+import { formatDateTime } from '@/lib/formatters';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -34,6 +35,7 @@ export default function BackupDetailPage() {
   return (
     <PageContainer
       title={backup?.name || 'Backup'}
+      breadcrumbs={[{ label: 'Backups', href: '/backups' }, { label: backup?.name ?? 'Backup' }]}
       loading={loading}
       error={error}
       action={
@@ -112,7 +114,7 @@ export default function BackupDetailPage() {
             <div>
               <dt className="text-sm font-medium text-gray-500">Last Run</dt>
               <dd className="mt-1 text-sm text-gray-900">
-                {backup.last_run_at ? new Date(backup.last_run_at).toLocaleString() : '\u2014'}
+                {backup.last_run_at ? formatDateTime(backup.last_run_at) : '\u2014'}
               </dd>
             </div>
             <div>
@@ -127,12 +129,10 @@ export default function BackupDetailPage() {
                 {backup.storage_path || '\u2014'}
               </dd>
             </div>
-            {backup.notes && (
-              <div className="sm:col-span-2">
-                <dt className="text-sm font-medium text-gray-500">Notes</dt>
-                <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{backup.notes}</dd>
-              </div>
-            )}
+            <div className="sm:col-span-2">
+              <dt className="text-sm font-medium text-gray-500">Notes</dt>
+              <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{backup.notes || '\u2014'}</dd>
+            </div>
           </dl>
         </Card>
       )}

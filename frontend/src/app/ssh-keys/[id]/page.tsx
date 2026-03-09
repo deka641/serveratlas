@@ -65,6 +65,7 @@ export default function SshKeyDetailPage() {
   return (
     <PageContainer
       title={key?.name || 'SSH Key'}
+      breadcrumbs={[{ label: 'SSH Keys', href: '/ssh-keys' }, { label: key?.name ?? 'SSH Key' }]}
       loading={loading}
       error={error}
       action={

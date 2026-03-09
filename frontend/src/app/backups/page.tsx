@@ -78,7 +78,7 @@ export default function BackupsPage() {
       ) : (
         <EmptyState
           message="No backups found"
-          description="Add your first backup configuration to get started."
+          description="Get started by adding your first backup."
         />
       )}
     </PageContainer>

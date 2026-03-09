@@ -32,7 +32,7 @@ export default function EditApplicationPage() {
   };
 
   return (
-    <PageContainer title="Edit Application" loading={fetching} error={error}>
+    <PageContainer title="Edit Application" breadcrumbs={[{ label: 'Applications', href: '/applications' }, { label: app?.name ?? 'Application', href: `/applications/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {app && (
         <Card>
           <ApplicationForm initialData={app} onSubmit={handleSubmit} loading={saving} />

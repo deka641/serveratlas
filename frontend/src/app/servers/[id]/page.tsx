@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import type { SshConnection, Backup, ServerSshKey, SshKey, Application } from '@/lib/types';
 import { api } from '@/lib/api';
+import { formatCost, formatDateTime } from '@/lib/formatters';
 import { useServer } from '@/hooks/useServers';
 import { useBackups } from '@/hooks/useBackups';
 import { useToast } from '@/components/ui/Toast';
@@ -20,13 +21,11 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
 
-const tabs: { key: TabKey; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'applications', label: 'Applications' },
-  { key: 'ssh-keys', label: 'SSH Keys' },
-  { key: 'connections', label: 'Connections' },
-  { key: 'backups', label: 'Backups' },
-];
+interface TabDef {
+  key: TabKey;
+  label: string;
+  count?: number;
+}
 
 export default function ServerDetailPage() {
   const params = useParams();
@@ -44,6 +43,14 @@ export default function ServerDetailPage() {
 
   // Backups
   const { data: backups, loading: backupsLoading } = useBackups({ source_server_id: id });
+
+  const tabs: TabDef[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'applications', label: 'Applications', count: server?.applications?.length ?? 0 },
+    { key: 'ssh-keys', label: 'SSH Keys', count: server?.ssh_keys?.length ?? 0 },
+    { key: 'connections', label: 'Connections', count: connections.length },
+    { key: 'backups', label: 'Backups', count: backups?.length ?? 0 },
+  ];
 
   // SSH Key management state
   const [showAddKeyModal, setShowAddKeyModal] = useState(false);
@@ -272,7 +279,7 @@ export default function ServerDetailPage() {
       label: 'Last Run',
       render: (backup) =>
         backup.last_run_at
-          ? new Date(backup.last_run_at).toLocaleString()
+          ? formatDateTime(backup.last_run_at)
           : 'Never',
     },
     {
@@ -286,6 +293,7 @@ export default function ServerDetailPage() {
   return (
     <PageContainer
       title={server?.name ?? 'Server Details'}
+      breadcrumbs={[{ label: 'Servers', href: '/servers' }, { label: server?.name ?? 'Server' }]}
       loading={loading}
       error={error}
       action={
@@ -317,6 +325,11 @@ export default function ServerDetailPage() {
                   }`}
                 >
                   {tab.label}
+                  {tab.count !== undefined && (
+                    <span className="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      {tab.count}
+                    </span>
+                  )}
                 </button>
               ))}
             </nav>
@@ -389,7 +402,7 @@ export default function ServerDetailPage() {
                     label="Monthly Cost"
                     value={
                       server.monthly_cost != null
-                        ? `${Number(server.monthly_cost).toFixed(2)} ${server.cost_currency ?? 'EUR'}`
+                        ? formatCost(server.monthly_cost, server.cost_currency)
                         : null
                     }
                   />
@@ -403,13 +416,11 @@ export default function ServerDetailPage() {
                 </dl>
               </Card>
 
-              {server.notes && (
-                <Card title="Notes" className="lg:col-span-2">
-                  <p className="whitespace-pre-wrap text-sm text-gray-700">
-                    {server.notes}
-                  </p>
-                </Card>
-              )}
+              <Card title="Notes" className="lg:col-span-2">
+                <p className="whitespace-pre-wrap text-sm text-gray-700">
+                  {server.notes || '\u2014'}
+                </p>
+              </Card>
             </div>
           )}
 
@@ -419,7 +430,7 @@ export default function ServerDetailPage() {
               <Table
                 columns={applicationColumns}
                 data={server.applications}
-                emptyMessage="No applications on this server. Go to Applications to add one."
+                emptyMessage="No applications on this server yet."
               />
             </Card>
           )}
@@ -436,7 +447,7 @@ export default function ServerDetailPage() {
                 <Table
                   columns={sshKeyColumns}
                   data={server.ssh_keys}
-                  emptyMessage="No SSH keys assigned. Click 'Add SSH Key' to assign one."
+                  emptyMessage="No SSH keys assigned yet."
                 />
               </Card>
 
@@ -525,7 +536,7 @@ export default function ServerDetailPage() {
                 <Table
                   columns={connectionColumns}
                   data={connections}
-                  emptyMessage="No SSH connections for this server. Go to SSH Connections to create one."
+                  emptyMessage="No connections configured yet."
                 />
               )}
             </Card>
@@ -542,7 +553,7 @@ export default function ServerDetailPage() {
                 <Table
                   columns={backupColumns}
                   data={backups ?? []}
-                  emptyMessage="No backups configured for this server. Go to Backups to create one."
+                  emptyMessage="No backups configured yet."
                 />
               )}
             </Card>

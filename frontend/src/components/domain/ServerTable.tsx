@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { Server } from '@/lib/types';
+import { formatCost } from '@/lib/formatters';
 import Table, { Column } from '@/components/ui/Table';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Button from '@/components/ui/Button';
@@ -58,10 +59,7 @@ export default function ServerTable({ servers, onDelete }: ServerTableProps) {
       key: 'monthly_cost',
       label: 'Monthly Cost',
       sortable: true,
-      render: (server) =>
-        server.monthly_cost != null
-          ? `${Number(server.monthly_cost).toFixed(2)} ${server.cost_currency ?? 'EUR'}`
-          : '\u2014',
+      render: (server) => formatCost(server.monthly_cost, server.cost_currency),
     },
     {
       key: 'actions',

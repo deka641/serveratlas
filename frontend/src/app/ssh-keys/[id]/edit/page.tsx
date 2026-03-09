@@ -32,7 +32,7 @@ export default function EditSshKeyPage() {
   };
 
   return (
-    <PageContainer title="Edit SSH Key" loading={fetching} error={error}>
+    <PageContainer title="Edit SSH Key" breadcrumbs={[{ label: 'SSH Keys', href: '/ssh-keys' }, { label: key?.name ?? 'SSH Key', href: `/ssh-keys/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {key && (
         <Card>
           <SshKeyForm initialData={key} onSubmit={handleSubmit} loading={saving} />

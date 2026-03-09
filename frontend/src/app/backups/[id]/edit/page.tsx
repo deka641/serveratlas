@@ -32,7 +32,7 @@ export default function EditBackupPage() {
   };
 
   return (
-    <PageContainer title="Edit Backup" loading={fetching} error={error}>
+    <PageContainer title="Edit Backup" breadcrumbs={[{ label: 'Backups', href: '/backups' }, { label: backup?.name ?? 'Backup', href: `/backups/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {backup && (
         <Card>
           <BackupForm initialData={backup} onSubmit={handleSubmit} loading={saving} />

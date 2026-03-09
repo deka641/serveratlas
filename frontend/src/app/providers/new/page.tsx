@@ -26,7 +26,7 @@ export default function NewProviderPage() {
   };
 
   return (
-    <PageContainer title="New Provider">
+    <PageContainer title="New Provider" breadcrumbs={[{ label: 'Providers', href: '/providers' }, { label: 'New Provider' }]}>
       <Card className="max-w-2xl">
         <ProviderForm onSubmit={handleSubmit} loading={loading} />
       </Card>

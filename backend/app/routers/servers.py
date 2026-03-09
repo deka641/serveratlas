@@ -57,7 +57,9 @@ async def get_server(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("", response_model=ServerRead, status_code=201)
 async def create_server(data: ServerCreate, db: AsyncSession = Depends(get_db)):
-    return await server_crud.create(db, data.model_dump())
+    created = await server_crud.create(db, data.model_dump())
+    server = await server_crud.get_with_provider(db, created.id)
+    return _server_to_read(server)
 
 
 @router.put("/{id}", response_model=ServerRead)
@@ -65,7 +67,8 @@ async def update_server(id: int, data: ServerUpdate, db: AsyncSession = Depends(
     updated = await server_crud.update(db, id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(404, "Server not found")
-    return updated
+    server = await server_crud.get_with_provider(db, updated.id)
+    return _server_to_read(server)
 
 
 @router.delete("/{id}", status_code=204)

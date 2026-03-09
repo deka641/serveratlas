@@ -28,7 +28,7 @@ export default function NewApplicationPage() {
   };
 
   return (
-    <PageContainer title="New Application">
+    <PageContainer title="New Application" breadcrumbs={[{ label: 'Applications', href: '/applications' }, { label: 'New Application' }]}>
       <Card>
         <ApplicationForm onSubmit={handleSubmit} loading={loading} />
       </Card>

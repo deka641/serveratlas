@@ -8,6 +8,7 @@ import { useBackups } from '@/hooks/useBackups';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
 import PageContainer from '@/components/PageContainer';
+import { formatDateTime } from '@/lib/formatters';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -35,32 +36,32 @@ export default function ApplicationDetailPage() {
     }
   };
 
-  const backupColumns: Column<Record<string, unknown>>[] = [
+  const backupColumns: Column<Backup>[] = [
     {
       key: 'name',
       label: 'Name',
-      render: (row) => (
-        <Link href={`/backups/${row.id}`} className="font-medium text-blue-600 hover:text-blue-800">
-          {row.name as string}
+      render: (backup) => (
+        <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+          {backup.name}
         </Link>
       ),
     },
     {
       key: 'frequency',
       label: 'Frequency',
-      render: (row) => <Badge>{String(row.frequency).replace(/_/g, ' ')}</Badge>,
+      render: (backup) => <Badge>{backup.frequency.replace(/_/g, ' ')}</Badge>,
     },
     {
       key: 'last_run_status',
       label: 'Status',
-      render: (row) => <StatusBadge status={row.last_run_status as Backup['last_run_status']} />,
+      render: (backup) => <StatusBadge status={backup.last_run_status} />,
     },
     {
       key: 'last_run_at',
       label: 'Last Run',
-      render: (row) =>
-        row.last_run_at
-          ? new Date(row.last_run_at as string).toLocaleString()
+      render: (backup) =>
+        backup.last_run_at
+          ? formatDateTime(backup.last_run_at)
           : '\u2014',
     },
   ];
@@ -68,6 +69,7 @@ export default function ApplicationDetailPage() {
   return (
     <PageContainer
       title={app?.name || 'Application'}
+      breadcrumbs={[{ label: 'Applications', href: '/applications' }, { label: app?.name ?? 'Application' }]}
       loading={loading}
       error={error}
       action={
@@ -133,32 +135,23 @@ export default function ApplicationDetailPage() {
                   )}
                 </dd>
               </div>
-              {app.config_notes && (
-                <div className="sm:col-span-2">
-                  <dt className="text-sm font-medium text-gray-500">Config Notes</dt>
-                  <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{app.config_notes}</dd>
-                </div>
-              )}
-              {app.notes && (
-                <div className="sm:col-span-2">
-                  <dt className="text-sm font-medium text-gray-500">Notes</dt>
-                  <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{app.notes}</dd>
-                </div>
-              )}
+              <div className="sm:col-span-2">
+                <dt className="text-sm font-medium text-gray-500">Config Notes</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{app.config_notes || '\u2014'}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-sm font-medium text-gray-500">Notes</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{app.notes || '\u2014'}</dd>
+              </div>
             </dl>
           </Card>
 
           <Card title="Backups" noPadding>
-            {backups && backups.length > 0 ? (
-              <Table
-                columns={backupColumns}
-                data={backups as unknown as Record<string, unknown>[]}
-              />
-            ) : (
-              <div className="p-6 text-center text-sm text-gray-500">
-                No backups configured for this application.
-              </div>
-            )}
+            <Table
+              columns={backupColumns}
+              data={backups ?? []}
+              emptyMessage="No backups configured for this application."
+            />
           </Card>
         </div>
       )}

@@ -33,6 +33,7 @@ export default function SshConnectionDetailPage() {
   return (
     <PageContainer
       title="SSH Connection"
+      breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: 'SSH Connection' }]}
       loading={loading}
       error={error}
       action={

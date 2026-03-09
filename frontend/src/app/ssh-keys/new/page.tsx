@@ -28,7 +28,7 @@ export default function NewSshKeyPage() {
   };
 
   return (
-    <PageContainer title="New SSH Key">
+    <PageContainer title="New SSH Key" breadcrumbs={[{ label: 'SSH Keys', href: '/ssh-keys' }, { label: 'New SSH Key' }]}>
       <Card>
         <SshKeyForm onSubmit={handleSubmit} loading={loading} />
       </Card>

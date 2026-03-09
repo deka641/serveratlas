@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { Backup } from '@/lib/types';
+import { formatDateTime } from '@/lib/formatters';
 import Table, { Column } from '@/components/ui/Table';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -80,7 +81,7 @@ export default function BackupTable({ backups, onDelete }: BackupTableProps) {
       key: 'last_run_at',
       label: 'Last Run',
       render: (backup) =>
-        backup.last_run_at ? new Date(backup.last_run_at).toLocaleString() : '\u2014',
+        backup.last_run_at ? formatDateTime(backup.last_run_at) : '\u2014',
     },
     {
       key: 'actions',

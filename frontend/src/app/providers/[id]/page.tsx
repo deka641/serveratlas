@@ -12,6 +12,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { useProvider, useProviderServers } from '@/hooks/useProviders';
 import { api } from '@/lib/api';
+import { formatDate } from '@/lib/formatters';
 import type { Server } from '@/lib/types';
 
 const statusColors: Record<string, 'green' | 'red' | 'yellow' | 'gray'> = {
@@ -81,6 +82,7 @@ export default function ProviderDetailPage() {
   return (
     <PageContainer
       title={provider?.name ?? 'Provider'}
+      breadcrumbs={[{ label: 'Providers', href: '/providers' }, { label: provider?.name ?? 'Provider' }]}
       loading={loading}
       error={error}
       action={
@@ -131,24 +133,22 @@ export default function ProviderDetailPage() {
                 <dt className="text-sm font-medium text-gray-500">Server Count</dt>
                 <dd className="mt-1 text-sm text-gray-900">{provider.server_count}</dd>
               </div>
-              {provider.notes && (
-                <div className="sm:col-span-2">
-                  <dt className="text-sm font-medium text-gray-500">Notes</dt>
-                  <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">
-                    {provider.notes}
-                  </dd>
-                </div>
-              )}
+              <div className="sm:col-span-2">
+                <dt className="text-sm font-medium text-gray-500">Notes</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-sm text-gray-900">
+                  {provider.notes || '\u2014'}
+                </dd>
+              </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Created</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {new Date(provider.created_at).toLocaleDateString()}
+                  {formatDate(provider.created_at)}
                 </dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-gray-500">Last Updated</dt>
                 <dd className="mt-1 text-sm text-gray-900">
-                  {new Date(provider.updated_at).toLocaleDateString()}
+                  {formatDate(provider.updated_at)}
                 </dd>
               </div>
             </dl>
@@ -156,9 +156,9 @@ export default function ProviderDetailPage() {
 
           <Card title="Servers" noPadding>
             <Table
-              columns={serverColumns as unknown as Column<Record<string, unknown>>[]}
-              data={(servers ?? []) as unknown as Record<string, unknown>[]}
-              keyExtractor={(item) => (item as unknown as Server).id}
+              columns={serverColumns}
+              data={servers ?? []}
+              keyExtractor={(item) => item.id}
             />
           </Card>
         </div>

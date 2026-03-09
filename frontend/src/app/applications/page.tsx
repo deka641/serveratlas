@@ -79,7 +79,7 @@ export default function ApplicationsPage() {
       ) : (
         <EmptyState
           message="No applications found"
-          description="Add your first application to get started."
+          description="Get started by adding your first application."
         />
       )}
     </PageContainer>

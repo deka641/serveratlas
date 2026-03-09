@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import backup_crud
@@ -18,14 +18,14 @@ def _backup_to_read(b) -> dict:
 
 @router.get("", response_model=list[BackupRead])
 async def list_backups(
-    skip: int = 0, limit: int = 100,
+    skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     source_server_id: int | None = None, application_id: int | None = None,
-    status: str | None = None,
+    status: str | None = None, search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     backups = await backup_crud.get_multi_filtered(
         db, skip=skip, limit=limit, source_server_id=source_server_id,
-        application_id=application_id, status=status,
+        application_id=application_id, status=status, search=search,
     )
     return [BackupRead.model_validate(_backup_to_read(b)) for b in backups]
 

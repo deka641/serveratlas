@@ -42,7 +42,12 @@ import type {
 
 export const api = {
   // Providers
-  listProviders: () => request<Provider[]>('/providers'),
+  listProviders: (params?: { search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request<Provider[]>(`/providers${q ? '?' + q : ''}`);
+  },
   getProvider: (id: number) => request<Provider>(`/providers/${id}`),
   getProviderWithServers: (id: number) => request<ProviderWithServers>(`/providers/${id}`),
   getProviderServers: (id: number) => request<Server[]>(`/providers/${id}/servers`),
@@ -72,14 +77,24 @@ export const api = {
     request<void>(`/servers/${serverId}/ssh-keys/${keyId}`, { method: 'DELETE' }),
 
   // SSH Keys
-  listSshKeys: () => request<SshKey[]>('/ssh-keys'),
+  listSshKeys: (params?: { search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request<SshKey[]>(`/ssh-keys${q ? '?' + q : ''}`);
+  },
   getSshKey: (id: number) => request<SshKeyWithServers>(`/ssh-keys/${id}`),
   createSshKey: (data: Partial<SshKey>) => request<SshKey>('/ssh-keys', { method: 'POST', body: JSON.stringify(data) }),
   updateSshKey: (id: number, data: Partial<SshKey>) => request<SshKey>(`/ssh-keys/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteSshKey: (id: number) => request<void>(`/ssh-keys/${id}`, { method: 'DELETE' }),
 
   // SSH Connections
-  listSshConnections: () => request<SshConnection[]>('/ssh-connections'),
+  listSshConnections: (params?: { search?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request<SshConnection[]>(`/ssh-connections${q ? '?' + q : ''}`);
+  },
   getSshConnection: (id: number) => request<SshConnection>(`/ssh-connections/${id}`),
   createSshConnection: (data: Partial<SshConnection>) => request<SshConnection>('/ssh-connections', { method: 'POST', body: JSON.stringify(data) }),
   updateSshConnection: (id: number, data: Partial<SshConnection>) => request<SshConnection>(`/ssh-connections/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -87,10 +102,11 @@ export const api = {
   getConnectionGraph: () => request<ConnectivityGraph>('/ssh-connections/graph'),
 
   // Applications
-  listApplications: (params?: { server_id?: number; status?: string }) => {
+  listApplications: (params?: { server_id?: number; status?: string; search?: string }) => {
     const qs = new URLSearchParams();
     if (params?.server_id) qs.set('server_id', String(params.server_id));
     if (params?.status) qs.set('status', params.status);
+    if (params?.search) qs.set('search', params.search);
     const q = qs.toString();
     return request<Application[]>(`/applications${q ? '?' + q : ''}`);
   },
@@ -100,11 +116,12 @@ export const api = {
   deleteApplication: (id: number) => request<void>(`/applications/${id}`, { method: 'DELETE' }),
 
   // Backups
-  listBackups: (params?: { source_server_id?: number; application_id?: number; status?: string }) => {
+  listBackups: (params?: { source_server_id?: number; application_id?: number; status?: string; search?: string }) => {
     const qs = new URLSearchParams();
     if (params?.source_server_id) qs.set('source_server_id', String(params.source_server_id));
     if (params?.application_id) qs.set('application_id', String(params.application_id));
     if (params?.status) qs.set('status', params.status);
+    if (params?.search) qs.set('search', params.search);
     const q = qs.toString();
     return request<Backup[]>(`/backups${q ? '?' + q : ''}`);
   },

@@ -63,7 +63,7 @@ export default function SshConnectionTable({ connections, onDelete }: SshConnect
           <Link href={`/ssh-connections/${conn.id}/edit`}>
             <Button variant="ghost" size="sm">Edit</Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(conn)}>
+          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800" onClick={() => setDeleteTarget(conn)}>
             Delete
           </Button>
         </div>

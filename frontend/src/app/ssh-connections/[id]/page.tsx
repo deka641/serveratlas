@@ -17,7 +17,7 @@ export default function SshConnectionDetailPage() {
   const id = Number(params.id);
   const router = useRouter();
   const { addToast } = useToast();
-  const { data: conn, loading, error } = useSshConnection(id);
+  const { data: conn, loading, error, refetch } = useSshConnection(id);
   const [showDelete, setShowDelete] = useState(false);
 
   const handleDelete = async () => {
@@ -36,6 +36,7 @@ export default function SshConnectionDetailPage() {
       breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: 'SSH Connection' }]}
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <div className="flex items-center gap-2">
           <Link href={`/ssh-connections/${id}/edit`}>

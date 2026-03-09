@@ -19,7 +19,7 @@ export default function BackupDetailPage() {
   const id = Number(params.id);
   const router = useRouter();
   const { addToast } = useToast();
-  const { data: backup, loading, error } = useBackup(id);
+  const { data: backup, loading, error, refetch } = useBackup(id);
   const [showDelete, setShowDelete] = useState(false);
 
   const handleDelete = async () => {
@@ -38,6 +38,7 @@ export default function BackupDetailPage() {
       breadcrumbs={[{ label: 'Backups', href: '/backups' }, { label: backup?.name ?? 'Backup' }]}
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <div className="flex items-center gap-2">
           <Link href={`/backups/${id}/edit`}>

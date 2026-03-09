@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { SshKey, SshKeyType } from '@/lib/types';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -21,6 +22,7 @@ const keyTypeOptions = [
 ];
 
 export default function SshKeyForm({ initialData, onSubmit, loading }: SshKeyFormProps) {
+  const router = useRouter();
   const [name, setName] = useState(initialData?.name || '');
   const [keyType, setKeyType] = useState<SshKeyType | ''>(initialData?.key_type || '');
   const [fingerprint, setFingerprint] = useState(initialData?.fingerprint || '');
@@ -88,7 +90,10 @@ export default function SshKeyForm({ initialData, onSubmit, loading }: SshKeyFor
         rows={3}
       />
 
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={loading || !name.trim()}>
           {loading ? 'Saving...' : initialData ? 'Update SSH Key' : 'Create SSH Key'}
         </Button>

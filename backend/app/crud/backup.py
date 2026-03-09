@@ -6,11 +6,15 @@ from app.crud.base import CRUDBase
 from app.models.backup import Backup, BackupStatus
 
 
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class BackupCRUD(CRUDBase[Backup]):
     async def get_multi_filtered(
         self, db: AsyncSession, skip: int = 0, limit: int = 100,
         source_server_id: int | None = None, application_id: int | None = None,
-        status: str | None = None,
+        status: str | None = None, search: str | None = None,
     ) -> list[Backup]:
         stmt = select(Backup).options(
             selectinload(Backup.application),
@@ -23,6 +27,11 @@ class BackupCRUD(CRUDBase[Backup]):
             stmt = stmt.where(Backup.application_id == application_id)
         if status:
             stmt = stmt.where(Backup.last_run_status == status)
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                Backup.name.ilike(f"%{escaped}%", escape="\\")
+            )
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())

@@ -22,7 +22,7 @@ export default function ApplicationTable({ applications, onDelete }: Application
       label: 'Name',
       sortable: true,
       render: (app) => (
-        <Link href={`/applications/${app.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+        <Link href={`/applications/${app.id}`} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
           {app.name}
         </Link>
       ),
@@ -80,7 +80,7 @@ export default function ApplicationTable({ applications, onDelete }: Application
           <Link href={`/applications/${app.id}/edit`}>
             <Button variant="ghost" size="sm">Edit</Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(app)}>
+          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800" onClick={() => setDeleteTarget(app)}>
             Delete
           </Button>
         </div>

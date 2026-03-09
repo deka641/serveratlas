@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SshConnectionBase(BaseModel):
@@ -8,7 +8,7 @@ class SshConnectionBase(BaseModel):
     target_server_id: int
     ssh_key_id: int | None = None
     ssh_user: str | None = None
-    ssh_port: int = 22
+    ssh_port: int = Field(22, ge=1, le=65535)
     purpose: str | None = None
     notes: str | None = None
 
@@ -22,7 +22,7 @@ class SshConnectionUpdate(BaseModel):
     target_server_id: int | None = None
     ssh_key_id: int | None = None
     ssh_user: str | None = None
-    ssh_port: int | None = None
+    ssh_port: int | None = Field(None, ge=1, le=65535)
     purpose: str | None = None
     notes: str | None = None
 

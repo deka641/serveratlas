@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Application, AppStatus } from '@/lib/types';
 import { useServers } from '@/hooks/useServers';
 import Input from '@/components/ui/Input';
@@ -23,6 +24,7 @@ const statusOptions = [
 ];
 
 export default function ApplicationForm({ initialData, onSubmit, loading }: ApplicationFormProps) {
+  const router = useRouter();
   const { data: servers, loading: serversLoading } = useServers();
 
   const [name, setName] = useState(initialData?.name || '');
@@ -125,7 +127,10 @@ export default function ApplicationForm({ initialData, onSubmit, loading }: Appl
         rows={3}
       />
 
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={loading || !name.trim() || !serverId}>
           {loading ? 'Saving...' : initialData ? 'Update Application' : 'Create Application'}
         </Button>

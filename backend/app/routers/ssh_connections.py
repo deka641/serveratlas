@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_connection_crud
@@ -20,8 +20,8 @@ def _conn_to_read(c) -> dict:
 
 
 @router.get("", response_model=list[SshConnectionRead])
-async def list_ssh_connections(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
-    connections = await ssh_connection_crud.get_multi(db, skip=skip, limit=limit)
+async def list_ssh_connections(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
+    connections = await ssh_connection_crud.get_multi(db, skip=skip, limit=limit, search=search)
     return [SshConnectionRead.model_validate(_conn_to_read(c)) for c in connections]
 
 

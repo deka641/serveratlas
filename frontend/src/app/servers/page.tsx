@@ -79,6 +79,7 @@ export default function ServersPage() {
       title="Servers"
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <Link href="/servers/new">
           <Button>Add Server</Button>

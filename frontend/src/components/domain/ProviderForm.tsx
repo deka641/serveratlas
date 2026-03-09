@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
@@ -20,6 +21,7 @@ interface ProviderFormProps {
 }
 
 export default function ProviderForm({ initialData, onSubmit, loading = false }: ProviderFormProps) {
+  const router = useRouter();
   const [name, setName] = useState(initialData?.name ?? '');
   const [website, setWebsite] = useState(initialData?.website ?? '');
   const [supportContact, setSupportContact] = useState(initialData?.support_contact ?? '');
@@ -79,7 +81,10 @@ export default function ProviderForm({ initialData, onSubmit, loading = false }:
         placeholder="Additional notes about this provider..."
         disabled={loading}
       />
-      <div className="flex items-center gap-3">
+      <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={loading}>
           {loading ? 'Saving...' : initialData ? 'Update Provider' : 'Create Provider'}
         </Button>

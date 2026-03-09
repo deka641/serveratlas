@@ -2,8 +2,8 @@
 import { api } from '@/lib/api';
 import { useData } from './useData';
 
-export function useSshKeys() {
-  return useData(() => api.listSshKeys());
+export function useSshKeys(params?: { search?: string }) {
+  return useData(() => api.listSshKeys(params), [params?.search]);
 }
 
 export function useSshKey(id: number) {

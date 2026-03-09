@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { SshConnection } from '@/lib/types';
 import { useServers } from '@/hooks/useServers';
 import { useSshKeys } from '@/hooks/useSshKeys';
@@ -17,6 +18,7 @@ interface SshConnectionFormProps {
 }
 
 export default function SshConnectionForm({ initialData, onSubmit, loading }: SshConnectionFormProps) {
+  const router = useRouter();
   const { data: servers, loading: serversLoading } = useServers();
   const { data: sshKeys, loading: keysLoading } = useSshKeys();
 
@@ -131,7 +133,10 @@ export default function SshConnectionForm({ initialData, onSubmit, loading }: Ss
         rows={3}
       />
 
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          Cancel
+        </Button>
         <Button
           type="submit"
           disabled={loading || !sourceServerId || !targetServerId}

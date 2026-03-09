@@ -24,7 +24,7 @@ export default function BackupTable({ backups, onDelete }: BackupTableProps) {
       label: 'Name',
       sortable: true,
       render: (backup) => (
-        <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+        <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
           {backup.name}
         </Link>
       ),
@@ -91,7 +91,7 @@ export default function BackupTable({ backups, onDelete }: BackupTableProps) {
           <Link href={`/backups/${backup.id}/edit`}>
             <Button variant="ghost" size="sm">Edit</Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(backup)}>
+          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800" onClick={() => setDeleteTarget(backup)}>
             Delete
           </Button>
         </div>

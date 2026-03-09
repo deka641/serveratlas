@@ -22,7 +22,7 @@ export default function ApplicationDetailPage() {
   const id = Number(params.id);
   const router = useRouter();
   const { addToast } = useToast();
-  const { data: app, loading, error } = useApplication(id);
+  const { data: app, loading, error, refetch } = useApplication(id);
   const { data: backups } = useBackups({ application_id: id });
   const [showDelete, setShowDelete] = useState(false);
 
@@ -41,7 +41,7 @@ export default function ApplicationDetailPage() {
       key: 'name',
       label: 'Name',
       render: (backup) => (
-        <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+        <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
           {backup.name}
         </Link>
       ),
@@ -72,6 +72,7 @@ export default function ApplicationDetailPage() {
       breadcrumbs={[{ label: 'Applications', href: '/applications' }, { label: app?.name ?? 'Application' }]}
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <div className="flex items-center gap-2">
           <Link href={`/applications/${id}/edit`}>
@@ -146,7 +147,13 @@ export default function ApplicationDetailPage() {
             </dl>
           </Card>
 
-          <Card title="Backups" noPadding>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Backups</h2>
+            <Link href={`/backups/new?source_server_id=${app.server_id}&application_id=${id}`}>
+              <Button size="sm">Add Backup</Button>
+            </Link>
+          </div>
+          <Card noPadding>
             <Table
               columns={backupColumns}
               data={backups ?? []}

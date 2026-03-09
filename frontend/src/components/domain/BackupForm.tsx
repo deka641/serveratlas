@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Backup, BackupFrequency, BackupStatus } from '@/lib/types';
 import { useServers } from '@/hooks/useServers';
 import { useApplications } from '@/hooks/useApplications';
@@ -32,6 +33,7 @@ const statusOptions = [
 ];
 
 export default function BackupForm({ initialData, onSubmit, loading }: BackupFormProps) {
+  const router = useRouter();
   const { data: servers, loading: serversLoading } = useServers();
 
   const [name, setName] = useState(initialData?.name || '');
@@ -174,7 +176,10 @@ export default function BackupForm({ initialData, onSubmit, loading }: BackupFor
         rows={3}
       />
 
-      <div className="flex justify-end gap-3">
+      <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          Cancel
+        </Button>
         <Button type="submit" disabled={loading || !name.trim() || !sourceServerId}>
           {loading ? 'Saving...' : initialData ? 'Update Backup' : 'Create Backup'}
         </Button>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_key_crud
@@ -9,8 +9,8 @@ router = APIRouter(prefix="/ssh-keys", tags=["ssh-keys"])
 
 
 @router.get("", response_model=list[SshKeyRead])
-async def list_ssh_keys(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
-    return await ssh_key_crud.get_multi(db, skip=skip, limit=limit)
+async def list_ssh_keys(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
+    return await ssh_key_crud.get_multi_filtered(db, skip=skip, limit=limit, search=search)
 
 
 @router.get("/{id}", response_model=SshKeyReadWithServers)

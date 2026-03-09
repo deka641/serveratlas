@@ -16,6 +16,7 @@ export default function DashboardPage() {
     data: stats,
     loading: statsLoading,
     error: statsError,
+    refetch: refetchStats,
   } = useData(() => api.getDashboardStats());
 
   const {
@@ -38,7 +39,7 @@ export default function DashboardPage() {
   const error = statsError || costError || serversError;
 
   return (
-    <PageContainer title="Dashboard" error={error}>
+    <PageContainer title="Dashboard" error={error} onRetry={refetchStats}>
       <div className="space-y-8">
         <section>
           <h2 className="mb-4 text-lg font-semibold text-gray-900">

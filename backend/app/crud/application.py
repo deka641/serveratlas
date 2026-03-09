@@ -6,16 +6,26 @@ from app.crud.base import CRUDBase
 from app.models.application import Application
 
 
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class ApplicationCRUD(CRUDBase[Application]):
     async def get_multi_filtered(
         self, db: AsyncSession, skip: int = 0, limit: int = 100,
-        server_id: int | None = None, status: str | None = None
+        server_id: int | None = None, status: str | None = None,
+        search: str | None = None,
     ) -> list[Application]:
         stmt = select(Application).options(selectinload(Application.server))
         if server_id:
             stmt = stmt.where(Application.server_id == server_id)
         if status:
             stmt = stmt.where(Application.status == status)
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                Application.name.ilike(f"%{escaped}%", escape="\\")
+            )
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())

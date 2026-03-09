@@ -8,8 +8,12 @@ from app.models.ssh_connection import SshConnection
 from app.schemas.ssh_connection import ConnectivityGraph, GraphEdge, GraphNode
 
 
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class SshConnectionCRUD(CRUDBase[SshConnection]):
-    async def get_multi(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> list[SshConnection]:
+    async def get_multi(self, db: AsyncSession, skip: int = 0, limit: int = 100, search: str | None = None) -> list[SshConnection]:
         stmt = (
             select(SshConnection)
             .options(
@@ -17,8 +21,14 @@ class SshConnectionCRUD(CRUDBase[SshConnection]):
                 selectinload(SshConnection.target_server),
                 selectinload(SshConnection.ssh_key),
             )
-            .offset(skip).limit(limit)
         )
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                SshConnection.purpose.ilike(f"%{escaped}%", escape="\\") |
+                SshConnection.ssh_user.ilike(f"%{escaped}%", escape="\\")
+            )
+        stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
 

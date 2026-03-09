@@ -1,33 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import PageContainer from '@/components/PageContainer';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
+import StatusBadge from '@/components/ui/StatusBadge';
 import Table, { Column } from '@/components/ui/Table';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { useProvider, useProviderServers } from '@/hooks/useProviders';
 import { api } from '@/lib/api';
-import { formatDate } from '@/lib/formatters';
+import { formatDate, formatCost } from '@/lib/formatters';
 import type { Server } from '@/lib/types';
-
-const statusColors: Record<string, 'green' | 'red' | 'yellow' | 'gray'> = {
-  active: 'green',
-  inactive: 'gray',
-  maintenance: 'yellow',
-  decommissioned: 'red',
-};
 
 export default function ProviderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { addToast } = useToast();
   const id = Number(params.id);
-  const { data: provider, loading, error } = useProvider(id);
+  const { data: provider, loading, error, refetch } = useProvider(id);
   const { data: servers } = useProviderServers(id);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -71,11 +64,7 @@ export default function ProviderDetailPage() {
     {
       key: 'status',
       label: 'Status',
-      render: (server) => (
-        <Badge color={statusColors[server.status] || 'gray'}>
-          {server.status}
-        </Badge>
-      ),
+      render: (server) => <StatusBadge status={server.status} />,
     },
   ];
 
@@ -85,6 +74,7 @@ export default function ProviderDetailPage() {
       breadcrumbs={[{ label: 'Providers', href: '/providers' }, { label: provider?.name ?? 'Provider' }]}
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         provider && (
           <div className="flex items-center gap-2">
@@ -153,6 +143,34 @@ export default function ProviderDetailPage() {
               </div>
             </dl>
           </Card>
+
+          {servers && servers.length > 0 && (() => {
+            const costByCurrency: Record<string, number> = {};
+            let activeCount = 0;
+            for (const s of servers) {
+              if (s.monthly_cost != null) {
+                const currency = s.cost_currency || 'EUR';
+                costByCurrency[currency] = (costByCurrency[currency] || 0) + Number(s.monthly_cost);
+              }
+              if (s.status === 'active') activeCount++;
+            }
+            const currencies = Object.entries(costByCurrency);
+            if (currencies.length === 0) return null;
+            return (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {currencies.map(([currency, total]) => (
+                  <div key={currency} className="rounded-lg border border-gray-200 bg-white p-4 border-l-4 border-l-blue-500">
+                    <p className="text-sm font-medium text-gray-500">Monthly Cost ({currency})</p>
+                    <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCost(total, currency)}</p>
+                  </div>
+                ))}
+                <div className="rounded-lg border border-gray-200 bg-white p-4 border-l-4 border-l-green-500">
+                  <p className="text-sm font-medium text-gray-500">Active Servers</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">{activeCount} / {servers.length}</p>
+                </div>
+              </div>
+            );
+          })()}
 
           <Card title="Servers" noPadding>
             <Table

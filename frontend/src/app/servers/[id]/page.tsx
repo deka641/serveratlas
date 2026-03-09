@@ -262,7 +262,18 @@ export default function ServerDetailPage() {
   ];
 
   const backupColumns: Column<Backup>[] = [
-    { key: 'name', label: 'Name' },
+    {
+      key: 'name',
+      label: 'Name',
+      render: (backup: Backup) => (
+        <Link
+          href={`/backups/${backup.id}`}
+          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {backup.name}
+        </Link>
+      ),
+    },
     { key: 'frequency', label: 'Frequency' },
     {
       key: 'last_run_status',
@@ -296,6 +307,7 @@ export default function ServerDetailPage() {
       breadcrumbs={[{ label: 'Servers', href: '/servers' }, { label: server?.name ?? 'Server' }]}
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         server && (
           <div className="flex items-center gap-2">
@@ -426,13 +438,20 @@ export default function ServerDetailPage() {
 
           {/* Applications Tab */}
           {activeTab === 'applications' && (
-            <Card noPadding>
-              <Table
-                columns={applicationColumns}
-                data={server.applications}
-                emptyMessage="No applications on this server yet."
-              />
-            </Card>
+            <>
+              <div className="mb-4 flex justify-end">
+                <Link href={`/applications/new?server_id=${id}`}>
+                  <Button>Add Application</Button>
+                </Link>
+              </div>
+              <Card noPadding>
+                <Table
+                  columns={applicationColumns}
+                  data={server.applications}
+                  emptyMessage="No applications on this server yet."
+                />
+              </Card>
+            </>
           )}
 
           {/* SSH Keys Tab */}

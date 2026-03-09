@@ -11,7 +11,7 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = []) {
     setError(null);
     fetcher()
       .then(setData)
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

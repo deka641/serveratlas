@@ -1,11 +1,12 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
 
 class SshKeyBase(BaseModel):
     name: str
-    key_type: str | None = None
+    key_type: Literal["rsa", "ed25519", "ecdsa", "dsa"] | None = None
     fingerprint: str | None = None
     public_key: str | None = None
     comment: str | None = None
@@ -18,7 +19,7 @@ class SshKeyCreate(SshKeyBase):
 
 class SshKeyUpdate(BaseModel):
     name: str | None = None
-    key_type: str | None = None
+    key_type: Literal["rsa", "ed25519", "ecdsa", "dsa"] | None = None
     fingerprint: str | None = None
     public_key: str | None = None
     comment: str | None = None

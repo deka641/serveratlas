@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud, server_crud, ssh_connection_crud
@@ -28,7 +28,7 @@ def _server_to_read(server) -> dict:
 
 @router.get("", response_model=list[ServerRead])
 async def list_servers(
-    skip: int = 0, limit: int = 100,
+    skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     status: str | None = None, provider_id: int | None = None, search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):

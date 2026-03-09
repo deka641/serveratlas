@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 if TYPE_CHECKING:
     from app.schemas.application import ApplicationRead
@@ -18,12 +18,12 @@ class ServerBase(BaseModel):
     ip_v4: str | None = None
     ip_v6: str | None = None
     os: str | None = None
-    cpu_cores: int | None = None
-    ram_mb: int | None = None
-    disk_gb: int | None = None
+    cpu_cores: int | None = Field(None, ge=1)
+    ram_mb: int | None = Field(None, ge=1)
+    disk_gb: int | None = Field(None, ge=1)
     location: str | None = None
     datacenter: str | None = None
-    status: str = "active"
+    status: Literal["active", "inactive", "maintenance", "decommissioned"] = "active"
     monthly_cost: Decimal | None = None
     cost_currency: str | None = "EUR"
 
@@ -47,12 +47,12 @@ class ServerUpdate(BaseModel):
     ip_v4: str | None = None
     ip_v6: str | None = None
     os: str | None = None
-    cpu_cores: int | None = None
-    ram_mb: int | None = None
-    disk_gb: int | None = None
+    cpu_cores: int | None = Field(None, ge=1)
+    ram_mb: int | None = Field(None, ge=1)
+    disk_gb: int | None = Field(None, ge=1)
     location: str | None = None
     datacenter: str | None = None
-    status: str | None = None
+    status: Literal["active", "inactive", "maintenance", "decommissioned"] | None = None
     monthly_cost: Decimal | None = None
     cost_currency: str | None = None
     login_user: str | None = None

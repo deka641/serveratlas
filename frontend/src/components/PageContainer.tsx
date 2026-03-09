@@ -16,6 +16,7 @@ interface PageContainerProps {
   action?: ReactNode;
   loading?: boolean;
   error?: string | null;
+  onRetry?: () => void;
   breadcrumbs?: Breadcrumb[];
   children: ReactNode;
 }
@@ -25,6 +26,7 @@ export default function PageContainer({
   action,
   loading = false,
   error = null,
+  onRetry,
   breadcrumbs,
   children,
 }: PageContainerProps) {
@@ -75,6 +77,14 @@ export default function PageContainer({
                 />
               </svg>
               <p className="text-sm font-medium text-red-800">{error}</p>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  className="ml-auto rounded-md bg-red-100 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-200 transition-colors"
+                >
+                  Retry
+                </button>
+              )}
             </div>
           </div>
         ) : (

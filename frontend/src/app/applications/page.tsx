@@ -9,9 +9,11 @@ import type { AppStatus } from '@/lib/types';
 import { useToast } from '@/components/ui/Toast';
 import PageContainer from '@/components/PageContainer';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import EmptyState from '@/components/ui/EmptyState';
 import ApplicationTable from '@/components/domain/ApplicationTable';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const statusFilterOptions = [
   { value: '', label: 'All Statuses' },
@@ -24,10 +26,13 @@ const statusFilterOptions = [
 export default function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [serverFilter, setServerFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
   const { data: servers } = useServers();
   const { data: applications, loading, error, refetch } = useApplications({
     status: statusFilter || undefined,
     server_id: serverFilter ? Number(serverFilter) : undefined,
+    search: debouncedSearch || undefined,
   });
   const { addToast } = useToast();
 
@@ -51,13 +56,21 @@ export default function ApplicationsPage() {
       title="Applications"
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <Link href="/applications/new">
           <Button>Add Application</Button>
         </Link>
       }
     >
-      <div className="mb-4 flex items-center gap-4">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <Input
+            placeholder="Search applications..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <div className="w-48">
           <Select
             value={serverFilter}
@@ -76,12 +89,12 @@ export default function ApplicationsPage() {
 
       {applications && applications.length > 0 ? (
         <ApplicationTable applications={applications} onDelete={handleDelete} />
-      ) : (
+      ) : !loading ? (
         <EmptyState
-          message="No applications found"
-          description="Get started by adding your first application."
+          message={searchTerm || statusFilter || serverFilter ? 'No applications match your filters' : 'No applications found'}
+          description={searchTerm || statusFilter || serverFilter ? 'Try different search criteria.' : 'Get started by adding your first application.'}
         />
-      )}
+      ) : null}
     </PageContainer>
   );
 }

@@ -32,7 +32,7 @@ export default function SshKeyTable({ keys, onDelete }: SshKeyTableProps) {
       label: 'Name',
       sortable: true,
       render: (key) => (
-        <Link href={`/ssh-keys/${key.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+        <Link href={`/ssh-keys/${key.id}`} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">
           {key.name}
         </Link>
       ),
@@ -72,7 +72,7 @@ export default function SshKeyTable({ keys, onDelete }: SshKeyTableProps) {
           <Link href={`/ssh-keys/${key.id}/edit`}>
             <Button variant="ghost" size="sm">Edit</Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(key)}>
+          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-800" onClick={() => setDeleteTarget(key)}>
             Delete
           </Button>
         </div>

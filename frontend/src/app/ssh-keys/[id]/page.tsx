@@ -19,7 +19,7 @@ export default function SshKeyDetailPage() {
   const id = Number(params.id);
   const router = useRouter();
   const { addToast } = useToast();
-  const { data: key, loading, error } = useSshKey(id);
+  const { data: key, loading, error, refetch } = useSshKey(id);
   const [showDelete, setShowDelete] = useState(false);
 
   const handleDelete = async () => {
@@ -68,6 +68,7 @@ export default function SshKeyDetailPage() {
       breadcrumbs={[{ label: 'SSH Keys', href: '/ssh-keys' }, { label: key?.name ?? 'SSH Key' }]}
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <div className="flex items-center gap-2">
           <Link href={`/ssh-keys/${id}/edit`}>

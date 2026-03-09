@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import provider_crud
@@ -10,8 +10,8 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 @router.get("", response_model=list[ProviderRead])
-async def list_providers(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
-    rows = await provider_crud.get_multi(db, skip=skip, limit=limit)
+async def list_providers(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
+    rows = await provider_crud.get_multi(db, skip=skip, limit=limit, search=search)
     result = []
     for row in rows:
         p = row["provider"]

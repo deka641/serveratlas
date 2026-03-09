@@ -2,8 +2,8 @@
 import { api } from '@/lib/api';
 import { useData } from './useData';
 
-export function useProviders() {
-  return useData(() => api.listProviders());
+export function useProviders(params?: { search?: string }) {
+  return useData(() => api.listProviders(params), [params?.search]);
 }
 
 export function useProvider(id: number) {

@@ -7,14 +7,24 @@ from app.models.provider import Provider
 from app.models.server import Server
 
 
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class ProviderCRUD(CRUDBase[Provider]):
-    async def get_multi(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> list[dict]:
+    async def get_multi(self, db: AsyncSession, skip: int = 0, limit: int = 100, search: str | None = None) -> list[dict]:
         stmt = (
             select(Provider, func.count(Server.id).label("server_count"))
             .outerjoin(Server, Provider.id == Server.provider_id)
             .group_by(Provider.id)
-            .offset(skip).limit(limit)
         )
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                Provider.name.ilike(f"%{escaped}%", escape="\\") |
+                Provider.website.ilike(f"%{escaped}%", escape="\\")
+            )
+        stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         rows = result.all()
         out = []

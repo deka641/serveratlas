@@ -20,7 +20,12 @@ export default function RootLayout({
     <html lang="en" className={inter.className}>
       <head>
         <title>ServerAtlas</title>
-        <meta name="description" content="Infrastructure Management" />
+        <meta name="description" content="Central infrastructure management for servers, providers, applications, SSH keys, and backups." />
+        <meta name="theme-color" content="#1e293b" />
+        <meta property="og:title" content="ServerAtlas" />
+        <meta property="og:description" content="Central infrastructure management for servers, providers, applications, SSH keys, and backups." />
+        <meta property="og:type" content="website" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
       <body className="min-h-screen bg-gray-50">
         <ToastProvider>

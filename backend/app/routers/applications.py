@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud
@@ -10,11 +10,12 @@ router = APIRouter(prefix="/applications", tags=["applications"])
 
 @router.get("", response_model=list[ApplicationRead])
 async def list_applications(
-    skip: int = 0, limit: int = 100,
+    skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     server_id: int | None = None, status: str | None = None,
+    search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    apps = await application_crud.get_multi_filtered(db, skip=skip, limit=limit, server_id=server_id, status=status)
+    apps = await application_crud.get_multi_filtered(db, skip=skip, limit=limit, server_id=server_id, status=status, search=search)
     return [
         ApplicationRead.model_validate({
             **a.__dict__,
@@ -37,7 +38,12 @@ async def get_application(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("", response_model=ApplicationRead, status_code=201)
 async def create_application(data: ApplicationCreate, db: AsyncSession = Depends(get_db)):
-    return await application_crud.create(db, data.model_dump())
+    created = await application_crud.create(db, data.model_dump())
+    app = await application_crud.get_detail(db, created.id)
+    return ApplicationRead.model_validate({
+        **app.__dict__,
+        "server_name": app.server.name if app.server else None,
+    })
 
 
 @router.put("/{id}", response_model=ApplicationRead)
@@ -45,7 +51,11 @@ async def update_application(id: int, data: ApplicationUpdate, db: AsyncSession 
     updated = await application_crud.update(db, id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(404, "Application not found")
-    return updated
+    app = await application_crud.get_detail(db, updated.id)
+    return ApplicationRead.model_validate({
+        **app.__dict__,
+        "server_name": app.server.name if app.server else None,
+    })
 
 
 @router.delete("/{id}", status_code=204)

@@ -13,12 +13,12 @@ const legendItems = [
 ];
 
 export default function ConnectivityPage() {
-  const { data: graph, loading, error } = useConnectionGraph();
+  const { data: graph, loading, error, refetch } = useConnectionGraph();
 
   const hasData = graph && graph.nodes.length > 0;
 
   return (
-    <PageContainer title="Connectivity Map" loading={loading} error={error}>
+    <PageContainer title="Connectivity Map" loading={loading} error={error} onRetry={refetch}>
       <div className="flex flex-col gap-4">
         {hasData ? (
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm h-[50vh] min-h-[400px] md:h-[600px]">

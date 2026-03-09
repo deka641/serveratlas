@@ -8,9 +8,11 @@ import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
 import PageContainer from '@/components/PageContainer';
 import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import EmptyState from '@/components/ui/EmptyState';
 import BackupTable from '@/components/domain/BackupTable';
+import { useDebounce } from '@/hooks/useDebounce';
 
 const statusFilterOptions = [
   { value: '', label: 'All Statuses' },
@@ -23,10 +25,13 @@ const statusFilterOptions = [
 export default function BackupsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [serverFilter, setServerFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
   const { data: servers } = useServers();
   const { data: backups, loading, error, refetch } = useBackups({
     status: statusFilter || undefined,
     source_server_id: serverFilter ? Number(serverFilter) : undefined,
+    search: debouncedSearch || undefined,
   });
   const { addToast } = useToast();
 
@@ -50,13 +55,21 @@ export default function BackupsPage() {
       title="Backups"
       loading={loading}
       error={error}
+      onRetry={refetch}
       action={
         <Link href="/backups/new">
           <Button>Add Backup</Button>
         </Link>
       }
     >
-      <div className="mb-4 flex items-center gap-4">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <Input
+            placeholder="Search backups..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <div className="w-48">
           <Select
             value={serverFilter}
@@ -75,12 +88,12 @@ export default function BackupsPage() {
 
       {backups && backups.length > 0 ? (
         <BackupTable backups={backups} onDelete={handleDelete} />
-      ) : (
+      ) : !loading ? (
         <EmptyState
-          message="No backups found"
-          description="Get started by adding your first backup."
+          message={searchTerm || statusFilter || serverFilter ? 'No backups match your filters' : 'No backups found'}
+          description={searchTerm || statusFilter || serverFilter ? 'Try different search criteria.' : 'Get started by adding your first backup.'}
         />
-      )}
+      ) : null}
     </PageContainer>
   );
 }

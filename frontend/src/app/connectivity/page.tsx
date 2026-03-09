@@ -21,7 +21,7 @@ export default function ConnectivityPage() {
     <PageContainer title="Connectivity Map" loading={loading} error={error}>
       <div className="flex flex-col gap-4">
         {hasData ? (
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm" style={{ height: 600 }}>
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm h-[50vh] min-h-[400px] md:h-[600px]">
             <ConnectivityMap graph={graph} />
           </div>
         ) : (

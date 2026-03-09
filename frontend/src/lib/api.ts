@@ -8,21 +8,35 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new ApiError(res.status, text || res.statusText);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      ...options,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let message = res.statusText;
+      try {
+        const json = await res.json();
+        if (json.detail) message = json.detail;
+      } catch {
+        const text = await res.text();
+        if (text) message = text;
+      }
+      throw new ApiError(res.status, message);
+    }
+    if (res.status === 204) return undefined as T;
+    return res.json();
+  } finally {
+    clearTimeout(timeout);
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }
 
 import type {
   Application, Backup, ConnectivityGraph, CostSummary,
-  DashboardStats, Provider, ProviderWithServers, Server,
+  DashboardStats, Provider, ProviderWithServers, RecentBackup, Server,
   ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers,
 } from './types';
 
@@ -102,4 +116,5 @@ export const api = {
   // Dashboard
   getDashboardStats: () => request<DashboardStats>('/dashboard/stats'),
   getCostSummary: () => request<CostSummary>('/dashboard/cost-summary'),
+  getRecentBackups: () => request<RecentBackup[]>('/dashboard/recent-backups'),
 };

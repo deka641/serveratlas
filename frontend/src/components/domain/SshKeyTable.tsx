@@ -26,76 +26,63 @@ export default function SshKeyTable({ keys, onDelete }: SshKeyTableProps) {
     }
   };
 
-  const columns: Column<Record<string, unknown>>[] = [
+  const columns: Column<SshKey>[] = [
     {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (row) => {
-        const key = row as unknown as SshKey;
-        return (
-          <Link href={`/ssh-keys/${key.id}`} className="font-medium text-blue-600 hover:text-blue-800">
-            {key.name}
-          </Link>
-        );
-      },
+      render: (key) => (
+        <Link href={`/ssh-keys/${key.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+          {key.name}
+        </Link>
+      ),
     },
     {
       key: 'key_type',
       label: 'Key Type',
-      render: (row) => {
-        const key = row as unknown as SshKey;
-        return key.key_type ? (
+      render: (key) =>
+        key.key_type ? (
           <Badge color={keyTypeColor(key.key_type)}>{key.key_type.toUpperCase()}</Badge>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'fingerprint',
       label: 'Fingerprint',
-      render: (row) => {
-        const key = row as unknown as SshKey;
-        return key.fingerprint ? (
+      render: (key) =>
+        key.fingerprint ? (
           <span className="font-mono text-xs" title={key.fingerprint}>
             {key.fingerprint.length > 32 ? key.fingerprint.slice(0, 32) + '...' : key.fingerprint}
           </span>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'comment',
       label: 'Comment',
-      render: (row) => {
-        const key = row as unknown as SshKey;
-        return key.comment || '\u2014';
-      },
+      render: (key) => key.comment || '\u2014',
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => {
-        const key = row as unknown as SshKey;
-        return (
-          <div className="flex items-center gap-2">
-            <Link href={`/ssh-keys/${key.id}/edit`}>
-              <Button variant="ghost" size="sm">Edit</Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(key)}>
-              Delete
-            </Button>
-          </div>
-        );
-      },
+      render: (key) => (
+        <div className="flex items-center gap-2">
+          <Link href={`/ssh-keys/${key.id}/edit`}>
+            <Button variant="ghost" size="sm">Edit</Button>
+          </Link>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(key)}>
+            Delete
+          </Button>
+        </div>
+      ),
     },
   ];
 
   return (
     <>
-      <Table columns={columns} data={keys as unknown as Record<string, unknown>[]} />
+      <Table columns={columns} data={keys} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete SSH Key"

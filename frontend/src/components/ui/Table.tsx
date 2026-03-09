@@ -16,15 +16,16 @@ interface TableProps<T> {
   data: T[];
   onSort?: (key: string, direction: SortDirection) => void;
   keyExtractor?: (item: T) => string | number;
+  emptyMessage?: string;
   className?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export default function Table<T extends Record<string, any>>({
+export default function Table<T extends object>({
   columns,
   data,
   onSort,
   keyExtractor,
+  emptyMessage = 'No data available',
   className = '',
 }: TableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -45,10 +46,17 @@ export default function Table<T extends Record<string, any>>({
 
   const getKey = (item: T, index: number): string | number => {
     if (keyExtractor) return keyExtractor(item);
-    if ('id' in item && (typeof item.id === 'string' || typeof item.id === 'number')) {
-      return item.id as string | number;
+    if ('id' in item && (typeof (item as Record<string, unknown>).id === 'string' || typeof (item as Record<string, unknown>).id === 'number')) {
+      return (item as Record<string, unknown>).id as string | number;
     }
     return index;
+  };
+
+  const getCellValue = (item: T, key: string): ReactNode => {
+    const value = (item as Record<string, unknown>)[key];
+    if (value === null || value === undefined) return '\u2014';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '\u2014';
   };
 
   return (
@@ -105,7 +113,7 @@ export default function Table<T extends Record<string, any>>({
                 <td key={col.key} className="px-4 py-3 text-gray-700">
                   {col.render
                     ? col.render(item)
-                    : (item[col.key] as ReactNode) ?? '\u2014'}
+                    : getCellValue(item, col.key)}
                 </td>
               ))}
             </tr>
@@ -116,7 +124,7 @@ export default function Table<T extends Record<string, any>>({
                 colSpan={columns.length}
                 className="px-4 py-8 text-center text-gray-500"
               >
-                No data available
+                {emptyMessage}
               </td>
             </tr>
           )}

@@ -162,7 +162,22 @@ export interface CostByProvider {
   server_count: number;
 }
 
+export interface CurrencyTotal {
+  currency: string;
+  amount: number;
+}
+
 export interface CostSummary {
   total_monthly_cost: number;
   by_provider: CostByProvider[];
+  totals_by_currency: CurrencyTotal[];
+}
+
+export interface RecentBackup {
+  id: number;
+  name: string;
+  source_server_name: string | null;
+  application_name: string | null;
+  last_run_status: string;
+  last_run_at: string | null;
 }

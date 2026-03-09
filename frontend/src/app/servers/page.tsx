@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useServers } from '@/hooks/useServers';
 import { useProviders } from '@/hooks/useProviders';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import PageContainer from '@/components/PageContainer';
@@ -26,14 +27,27 @@ export default function ServersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [providerFilter, setProviderFilter] = useState('');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const params = useMemo(
     () => ({
       status: statusFilter || undefined,
       provider_id: providerFilter ? Number(providerFilter) : undefined,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
     }),
-    [statusFilter, providerFilter, search]
+    [statusFilter, providerFilter, debouncedSearch]
   );
 
   const { data: servers, loading, error, refetch } = useServers(params);
@@ -90,10 +104,11 @@ export default function ServersPage() {
         </div>
         <div className="w-full sm:w-64">
           <Input
+            ref={searchRef}
             label="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search servers..."
+            placeholder="Search servers... (Ctrl+K)"
           />
         </div>
       </div>

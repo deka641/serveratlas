@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import type { SshConnection, Backup } from '@/lib/types';
+import type { SshConnection, Backup, ServerSshKey, SshKey, Application } from '@/lib/types';
 import { api } from '@/lib/api';
 import { useServer } from '@/hooks/useServers';
 import { useBackups } from '@/hooks/useBackups';
@@ -14,6 +14,8 @@ import Button from '@/components/ui/Button';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Table, { Column } from '@/components/ui/Table';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import Modal from '@/components/ui/Modal';
+import Select from '@/components/ui/Select';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
@@ -32,7 +34,7 @@ export default function ServerDetailPage() {
   const { addToast } = useToast();
   const id = Number(params.id);
 
-  const { data: server, loading, error } = useServer(id);
+  const { data: server, loading, error, refetch } = useServer(id);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -42,6 +44,15 @@ export default function ServerDetailPage() {
 
   // Backups
   const { data: backups, loading: backupsLoading } = useBackups({ source_server_id: id });
+
+  // SSH Key management state
+  const [showAddKeyModal, setShowAddKeyModal] = useState(false);
+  const [availableKeys, setAvailableKeys] = useState<SshKey[]>([]);
+  const [selectedKeyId, setSelectedKeyId] = useState('');
+  const [isAuthorized, setIsAuthorized] = useState(true);
+  const [isHostKey, setIsHostKey] = useState(false);
+  const [addingKey, setAddingKey] = useState(false);
+  const [removeKeyTarget, setRemoveKeyTarget] = useState<ServerSshKey | null>(null);
 
   const loadConnections = useCallback(async () => {
     setConnectionsLoading(true);
@@ -61,6 +72,22 @@ export default function ServerDetailPage() {
     }
   }, [activeTab, loadConnections]);
 
+  const loadAvailableKeys = useCallback(async () => {
+    try {
+      const allKeys = await api.listSshKeys();
+      const assignedIds = new Set((server?.ssh_keys ?? []).map((k) => k.ssh_key_id));
+      setAvailableKeys(allKeys.filter((k) => !assignedIds.has(k.id)));
+    } catch {
+      addToast('error', 'Failed to load SSH keys');
+    }
+  }, [server?.ssh_keys, addToast]);
+
+  useEffect(() => {
+    if (showAddKeyModal) {
+      loadAvailableKeys();
+    }
+  }, [showAddKeyModal, loadAvailableKeys]);
+
   async function handleDelete() {
     try {
       await api.deleteServer(id);
@@ -68,6 +95,39 @@ export default function ServerDetailPage() {
       router.push('/servers');
     } catch {
       addToast('error', 'Failed to delete server');
+    }
+  }
+
+  async function handleAddSshKey() {
+    if (!selectedKeyId) return;
+    setAddingKey(true);
+    try {
+      await api.addServerSshKey(id, Number(selectedKeyId), {
+        is_authorized: isAuthorized,
+        is_host_key: isHostKey,
+      });
+      addToast('success', 'SSH key added');
+      setShowAddKeyModal(false);
+      setSelectedKeyId('');
+      setIsAuthorized(true);
+      setIsHostKey(false);
+      refetch();
+    } catch {
+      addToast('error', 'Failed to add SSH key');
+    } finally {
+      setAddingKey(false);
+    }
+  }
+
+  async function handleRemoveSshKey() {
+    if (!removeKeyTarget) return;
+    try {
+      await api.removeServerSshKey(id, removeKeyTarget.ssh_key_id);
+      addToast('success', 'SSH key removed');
+      setRemoveKeyTarget(null);
+      refetch();
+    } catch {
+      addToast('error', 'Failed to remove SSH key');
     }
   }
 
@@ -79,6 +139,149 @@ export default function ServerDetailPage() {
       </div>
     );
   }
+
+  // Typed column definitions
+  const applicationColumns: Column<Application>[] = [
+    {
+      key: 'name',
+      label: 'Name',
+      render: (app) => (
+        <Link
+          href={`/applications/${app.id}`}
+          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {app.name}
+        </Link>
+      ),
+    },
+    { key: 'app_type', label: 'Type' },
+    {
+      key: 'port',
+      label: 'Port',
+      render: (app) =>
+        app.port != null ? String(app.port) : '\u2014',
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (app) => <StatusBadge status={app.status} />,
+    },
+    {
+      key: 'url',
+      label: 'URL',
+      render: (app) =>
+        app.url ? (
+          <a
+            href={app.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            {app.url}
+          </a>
+        ) : (
+          '\u2014'
+        ),
+    },
+  ];
+
+  const sshKeyColumns: Column<ServerSshKey>[] = [
+    {
+      key: 'ssh_key_name',
+      label: 'Name',
+      render: (key) => (
+        <Link
+          href={`/ssh-keys/${key.ssh_key_id}`}
+          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {key.ssh_key_name ?? 'Unnamed'}
+        </Link>
+      ),
+    },
+    {
+      key: 'is_authorized',
+      label: 'Authorized?',
+      render: (key) => (key.is_authorized ? 'Yes' : 'No'),
+    },
+    {
+      key: 'is_host_key',
+      label: 'Host Key?',
+      render: (key) => (key.is_host_key ? 'Yes' : 'No'),
+    },
+    { key: 'notes', label: 'Notes' },
+    {
+      key: 'actions',
+      label: '',
+      render: (key) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red-600 hover:text-red-800"
+          onClick={() => setRemoveKeyTarget(key)}
+        >
+          Remove
+        </Button>
+      ),
+    },
+  ];
+
+  const connectionColumns: Column<SshConnection>[] = [
+    {
+      key: 'connection',
+      label: 'Connection',
+      render: (conn) => (
+        <span>
+          <span className="font-medium">{conn.source_server_name}</span>
+          {' \u2192 '}
+          <span className="font-medium">{conn.target_server_name}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'ssh_user',
+      label: 'User',
+      render: (conn) => conn.ssh_user ?? '\u2014',
+    },
+    {
+      key: 'ssh_port',
+      label: 'Port',
+      render: (conn) => String(conn.ssh_port),
+    },
+    {
+      key: 'purpose',
+      label: 'Purpose',
+      render: (conn) => conn.purpose ?? '\u2014',
+    },
+  ];
+
+  const backupColumns: Column<Backup>[] = [
+    { key: 'name', label: 'Name' },
+    { key: 'frequency', label: 'Frequency' },
+    {
+      key: 'last_run_status',
+      label: 'Last Status',
+      render: (backup) =>
+        backup.last_run_status ? (
+          <StatusBadge status={backup.last_run_status} />
+        ) : (
+          '\u2014'
+        ),
+    },
+    {
+      key: 'last_run_at',
+      label: 'Last Run',
+      render: (backup) =>
+        backup.last_run_at
+          ? new Date(backup.last_run_at).toLocaleString()
+          : 'Never',
+    },
+    {
+      key: 'target_server_name',
+      label: 'Target Server',
+      render: (backup) => backup.target_server_name ?? '\u2014',
+    },
+    { key: 'storage_path', label: 'Storage Path' },
+  ];
 
   return (
     <PageContainer
@@ -102,7 +305,7 @@ export default function ServerDetailPage() {
         <>
           {/* Tab navigation */}
           <div className="mb-6 border-b border-gray-200">
-            <nav className="-mb-px flex gap-6">
+            <nav className="-mb-px flex gap-6 overflow-x-auto">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
@@ -214,90 +417,101 @@ export default function ServerDetailPage() {
           {activeTab === 'applications' && (
             <Card noPadding>
               <Table
-                columns={
-                  [
-                    {
-                      key: 'name',
-                      label: 'Name',
-                      render: (app) => (
-                        <Link
-                          href={`/applications/${app.id}`}
-                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          {app.name}
-                        </Link>
-                      ),
-                    },
-                    { key: 'app_type', label: 'Type' },
-                    {
-                      key: 'port',
-                      label: 'Port',
-                      render: (app) =>
-                        app.port != null ? String(app.port) : '\u2014',
-                    },
-                    {
-                      key: 'status',
-                      label: 'Status',
-                      render: (app) => <StatusBadge status={app.status as string} />,
-                    },
-                    {
-                      key: 'url',
-                      label: 'URL',
-                      render: (app) =>
-                        app.url ? (
-                          <a
-                            href={app.url as string}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline"
-                          >
-                            {app.url as string}
-                          </a>
-                        ) : (
-                          '\u2014'
-                        ),
-                    },
-                  ] as Column<Record<string, unknown>>[]
-                }
-                data={server.applications as unknown as Record<string, unknown>[]}
+                columns={applicationColumns}
+                data={server.applications}
+                emptyMessage="No applications on this server. Go to Applications to add one."
               />
             </Card>
           )}
 
           {/* SSH Keys Tab */}
           {activeTab === 'ssh-keys' && (
-            <Card noPadding>
-              <Table
-                columns={
-                  [
-                    {
-                      key: 'ssh_key_name',
-                      label: 'Name',
-                      render: (key) => (
-                        <Link
-                          href={`/ssh-keys/${key.ssh_key_id}`}
-                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          {(key.ssh_key_name as string) ?? 'Unnamed'}
-                        </Link>
-                      ),
-                    },
-                    {
-                      key: 'is_authorized',
-                      label: 'Authorized?',
-                      render: (key) => (key.is_authorized ? 'Yes' : 'No'),
-                    },
-                    {
-                      key: 'is_host_key',
-                      label: 'Host Key?',
-                      render: (key) => (key.is_host_key ? 'Yes' : 'No'),
-                    },
-                    { key: 'notes', label: 'Notes' },
-                  ] as Column<Record<string, unknown>>[]
-                }
-                data={server.ssh_keys as unknown as Record<string, unknown>[]}
+            <>
+              <div className="mb-4 flex justify-end">
+                <Button onClick={() => setShowAddKeyModal(true)}>
+                  Add SSH Key
+                </Button>
+              </div>
+              <Card noPadding>
+                <Table
+                  columns={sshKeyColumns}
+                  data={server.ssh_keys}
+                  emptyMessage="No SSH keys assigned. Click 'Add SSH Key' to assign one."
+                />
+              </Card>
+
+              {/* Add SSH Key Modal */}
+              <Modal
+                open={showAddKeyModal}
+                title="Add SSH Key to Server"
+                onClose={() => setShowAddKeyModal(false)}
+              >
+                <div className="space-y-4">
+                  <Select
+                    label="SSH Key"
+                    options={availableKeys.map((k) => ({
+                      value: String(k.id),
+                      label: k.name,
+                    }))}
+                    value={selectedKeyId}
+                    onChange={(e) => setSelectedKeyId(e.target.value)}
+                    placeholder="Select an SSH key..."
+                  />
+                  {availableKeys.length === 0 && (
+                    <p className="text-sm text-gray-500">
+                      No unassigned SSH keys available.{' '}
+                      <Link href="/ssh-keys/new" className="text-blue-600 hover:underline">
+                        Create a new one
+                      </Link>.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-6">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={isAuthorized}
+                        onChange={(e) => setIsAuthorized(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      Authorized Key
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={isHostKey}
+                        onChange={(e) => setIsHostKey(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                      Host Key
+                    </label>
+                  </div>
+                  <div className="flex justify-end gap-2 border-t pt-4">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowAddKeyModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleAddSshKey}
+                      disabled={!selectedKeyId || addingKey}
+                    >
+                      {addingKey ? 'Adding...' : 'Add Key'}
+                    </Button>
+                  </div>
+                </div>
+              </Modal>
+
+              {/* Remove SSH Key Confirmation */}
+              <ConfirmDialog
+                open={removeKeyTarget !== null}
+                title="Remove SSH Key"
+                message={`Remove "${removeKeyTarget?.ssh_key_name ?? 'this key'}" from this server?`}
+                confirmLabel="Remove"
+                onConfirm={handleRemoveSshKey}
+                onCancel={() => setRemoveKeyTarget(null)}
               />
-            </Card>
+            </>
           )}
 
           {/* Connections Tab */}
@@ -309,33 +523,9 @@ export default function ServerDetailPage() {
                 </div>
               ) : (
                 <Table
-                  columns={
-                    [
-                      {
-                        key: 'connection',
-                        label: 'Connection',
-                        render: (conn) => (
-                          <span>
-                            <span className="font-medium">
-                              {conn.source_server_name as string}
-                            </span>
-                            {' \u2192 '}
-                            <span className="font-medium">
-                              {conn.target_server_name as string}
-                            </span>
-                          </span>
-                        ),
-                      },
-                      { key: 'ssh_user', label: 'User' },
-                      {
-                        key: 'ssh_port',
-                        label: 'Port',
-                        render: (conn) => String(conn.ssh_port),
-                      },
-                      { key: 'purpose', label: 'Purpose' },
-                    ] as Column<Record<string, unknown>>[]
-                  }
-                  data={connections as unknown as Record<string, unknown>[]}
+                  columns={connectionColumns}
+                  data={connections}
+                  emptyMessage="No SSH connections for this server. Go to SSH Connections to create one."
                 />
               )}
             </Card>
@@ -350,38 +540,9 @@ export default function ServerDetailPage() {
                 </div>
               ) : (
                 <Table
-                  columns={
-                    [
-                      { key: 'name', label: 'Name' },
-                      { key: 'frequency', label: 'Frequency' },
-                      {
-                        key: 'last_run_status',
-                        label: 'Last Status',
-                        render: (backup: Record<string, unknown>) =>
-                          backup.last_run_status ? (
-                            <StatusBadge
-                              status={backup.last_run_status as string}
-                            />
-                          ) : (
-                            '\u2014'
-                          ),
-                      },
-                      {
-                        key: 'last_run_at',
-                        label: 'Last Run',
-                        render: (backup: Record<string, unknown>) =>
-                          backup.last_run_at
-                            ? new Date(backup.last_run_at as string).toLocaleString()
-                            : 'Never',
-                      },
-                      {
-                        key: 'target_server_name',
-                        label: 'Target Server',
-                      },
-                      { key: 'storage_path', label: 'Storage Path' },
-                    ] as Column<Record<string, unknown>>[]
-                  }
-                  data={(backups ?? []) as unknown as Record<string, unknown>[]}
+                  columns={backupColumns}
+                  data={backups ?? []}
+                  emptyMessage="No backups configured for this server. Go to Backups to create one."
                 />
               )}
             </Card>

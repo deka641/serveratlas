@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -85,18 +85,36 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    onMobileClose?.();
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [mobileOpen]);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
     return pathname.startsWith(href);
   };
 
-  return (
+  const sidebarContent = (
     <aside
-      className={`flex flex-col bg-slate-900 text-white transition-all duration-300 ${
+      className={`flex h-full flex-col bg-slate-900 text-white transition-all duration-300 ${
         collapsed ? 'w-16' : 'w-64'
       }`}
     >
@@ -107,7 +125,7 @@ export default function Sidebar() {
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+          className="hidden rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white md:block"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -118,10 +136,20 @@ export default function Sidebar() {
             )}
           </svg>
         </button>
+        {/* Mobile close button */}
+        <button
+          onClick={onMobileClose}
+          className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white md:hidden"
+          aria-label="Close sidebar"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-2 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
         {navItems.map((item) => (
           <Link
             key={item.href}
@@ -139,5 +167,28 @@ export default function Sidebar() {
         ))}
       </nav>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex md:flex-shrink-0">
+        {sidebarContent}
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={onMobileClose}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-y-0 left-0 z-50 w-64">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

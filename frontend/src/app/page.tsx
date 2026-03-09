@@ -6,6 +6,8 @@ import PageContainer from '@/components/PageContainer';
 import StatsCards from '@/components/domain/StatsCards';
 import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
 import CostOverview from '@/components/domain/CostOverview';
+import BackupHealthTable from '@/components/domain/BackupHealthTable';
+import Card from '@/components/ui/Card';
 
 export default function DashboardPage() {
   const {
@@ -26,7 +28,12 @@ export default function DashboardPage() {
     error: serversError,
   } = useData(() => api.listServers());
 
-  const loading = statsLoading || costLoading || serversLoading;
+  const {
+    data: recentBackups,
+    loading: backupsLoading,
+  } = useData(() => api.getRecentBackups());
+
+  const loading = statsLoading || costLoading || serversLoading || backupsLoading;
   const error = statsError || costError || serversError;
 
   return (
@@ -47,6 +54,17 @@ export default function DashboardPage() {
               Cost Summary
             </h2>
             <CostOverview costSummary={costSummary} />
+          </section>
+        )}
+
+        {recentBackups && recentBackups.length > 0 && (
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">
+              Backup Health
+            </h2>
+            <Card noPadding>
+              <BackupHealthTable backups={recentBackups} />
+            </Card>
           </section>
         )}
 

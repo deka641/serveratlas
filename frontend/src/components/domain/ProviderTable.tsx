@@ -92,11 +92,7 @@ export default function ProviderTable({ providers, onDelete }: ProviderTableProp
 
   return (
     <>
-      <Table
-        columns={columns}
-        data={providers as unknown as Record<string, unknown>[]}
-        keyExtractor={(item) => (item as unknown as Provider).id}
-      />
+      <Table columns={columns} data={providers} />
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete Provider"

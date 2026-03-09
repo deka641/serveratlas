@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Server, ServerStatus } from '@/lib/types';
 import { useProviders } from '@/hooks/useProviders';
 import Input from '@/components/ui/Input';
@@ -28,6 +29,7 @@ const currencyOptions = [
 ];
 
 export default function ServerForm({ initialData, onSubmit, loading }: ServerFormProps) {
+  const router = useRouter();
   const { data: providers } = useProviders();
 
   const [name, setName] = useState(initialData?.name ?? '');
@@ -263,7 +265,7 @@ export default function ServerForm({ initialData, onSubmit, loading }: ServerFor
       </fieldset>
 
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
-        <Button type="button" variant="secondary" onClick={() => history.back()}>
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
         <Button type="submit" disabled={loading}>

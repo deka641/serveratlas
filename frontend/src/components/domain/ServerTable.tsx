@@ -88,7 +88,7 @@ export default function ServerTable({ servers, onDelete }: ServerTableProps) {
 
   return (
     <>
-      <Table columns={columns} data={servers as Record<string, unknown>[]} />
+      <Table columns={columns} data={servers} />
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete Server"

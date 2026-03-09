@@ -10,6 +10,11 @@ from app.models.server import Server
 from app.models.server_ssh_key import ServerSshKey
 
 
+def _escape_like(value: str) -> str:
+    """Escape special LIKE characters so they match literally."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class ServerCRUD(CRUDBase[Server]):
     async def get_multi_filtered(
         self, db: AsyncSession, skip: int = 0, limit: int = 100,
@@ -21,10 +26,11 @@ class ServerCRUD(CRUDBase[Server]):
         if provider_id:
             stmt = stmt.where(Server.provider_id == provider_id)
         if search:
+            escaped = _escape_like(search)
             stmt = stmt.where(
-                Server.name.ilike(f"%{search}%") |
-                Server.hostname.ilike(f"%{search}%") |
-                Server.ip_v4.ilike(f"%{search}%")
+                Server.name.ilike(f"%{escaped}%", escape="\\") |
+                Server.hostname.ilike(f"%{escaped}%", escape="\\") |
+                Server.ip_v4.ilike(f"%{escaped}%", escape="\\")
             )
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)

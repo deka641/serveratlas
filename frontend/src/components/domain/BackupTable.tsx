@@ -17,110 +17,90 @@ interface BackupTableProps {
 export default function BackupTable({ backups, onDelete }: BackupTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<Backup | null>(null);
 
-  const columns: Column<Record<string, unknown>>[] = [
+  const columns: Column<Backup>[] = [
     {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return (
-          <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800">
-            {backup.name}
-          </Link>
-        );
-      },
+      render: (backup) => (
+        <Link href={`/backups/${backup.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+          {backup.name}
+        </Link>
+      ),
     },
     {
       key: 'source_server_name',
       label: 'Source Server',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return backup.source_server_id ? (
+      render: (backup) =>
+        backup.source_server_id ? (
           <Link href={`/servers/${backup.source_server_id}`} className="text-blue-600 hover:text-blue-800">
             {backup.source_server_name || `Server #${backup.source_server_id}`}
           </Link>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'target_server_name',
       label: 'Target Server',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return backup.target_server_id ? (
+      render: (backup) =>
+        backup.target_server_id ? (
           <Link href={`/servers/${backup.target_server_id}`} className="text-blue-600 hover:text-blue-800">
             {backup.target_server_name || `Server #${backup.target_server_id}`}
           </Link>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'application_name',
       label: 'Application',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return backup.application_id ? (
+      render: (backup) =>
+        backup.application_id ? (
           <Link href={`/applications/${backup.application_id}`} className="text-blue-600 hover:text-blue-800">
             {backup.application_name || `App #${backup.application_id}`}
           </Link>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'frequency',
       label: 'Frequency',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return (
-          <Badge>{backup.frequency.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
-        );
-      },
+      render: (backup) => (
+        <Badge>{backup.frequency.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>
+      ),
     },
     {
       key: 'last_run_status',
       label: 'Status',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return <StatusBadge status={backup.last_run_status} />;
-      },
+      render: (backup) => <StatusBadge status={backup.last_run_status} />,
     },
     {
       key: 'last_run_at',
       label: 'Last Run',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return backup.last_run_at ? new Date(backup.last_run_at).toLocaleString() : '\u2014';
-      },
+      render: (backup) =>
+        backup.last_run_at ? new Date(backup.last_run_at).toLocaleString() : '\u2014',
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => {
-        const backup = row as unknown as Backup;
-        return (
-          <div className="flex items-center gap-2">
-            <Link href={`/backups/${backup.id}/edit`}>
-              <Button variant="ghost" size="sm">Edit</Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(backup)}>
-              Delete
-            </Button>
-          </div>
-        );
-      },
+      render: (backup) => (
+        <div className="flex items-center gap-2">
+          <Link href={`/backups/${backup.id}/edit`}>
+            <Button variant="ghost" size="sm">Edit</Button>
+          </Link>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(backup)}>
+            Delete
+          </Button>
+        </div>
+      ),
     },
   ];
 
   return (
     <>
-      <Table columns={columns} data={backups as unknown as Record<string, unknown>[]} />
+      <Table columns={columns} data={backups} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Backup"

@@ -13,6 +13,8 @@ function formatCost(amount: number | string, currency?: string): string {
 }
 
 export default function CostOverview({ costSummary }: CostOverviewProps) {
+  const totals = costSummary.totals_by_currency ?? [];
+
   return (
     <div className="space-y-4">
       <Card className="border-l-4 border-l-green-500">
@@ -20,9 +22,19 @@ export default function CostOverview({ costSummary }: CostOverviewProps) {
           <span className="text-sm font-medium text-gray-500">
             Total Monthly Cost
           </span>
-          <span className="mt-1 text-3xl font-bold text-gray-900">
-            {formatCost(costSummary.total_monthly_cost)}
-          </span>
+          <div className="mt-1 flex flex-wrap items-baseline gap-3">
+            {totals.length > 0 ? (
+              totals.map((t) => (
+                <span key={t.currency} className="text-3xl font-bold text-gray-900">
+                  {formatCost(t.amount, t.currency)}
+                </span>
+              ))
+            ) : (
+              <span className="text-3xl font-bold text-gray-900">
+                {formatCost(costSummary.total_monthly_cost)}
+              </span>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -43,9 +55,9 @@ export default function CostOverview({ costSummary }: CostOverviewProps) {
               </tr>
             </thead>
             <tbody>
-              {costSummary.by_provider.map((item) => (
+              {costSummary.by_provider.map((item, idx) => (
                 <tr
-                  key={item.provider_name}
+                  key={`${item.provider_name}-${item.currency}-${idx}`}
                   className="border-b border-gray-100 last:border-b-0"
                 >
                   <td className="py-2 font-medium text-gray-900">

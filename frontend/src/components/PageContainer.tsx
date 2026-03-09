@@ -1,6 +1,9 @@
+'use client';
+
 import { ReactNode } from 'react';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { useMobileSidebar } from '@/components/MobileSidebarContext';
 
 interface PageContainerProps {
   title: string;
@@ -17,10 +20,12 @@ export default function PageContainer({
   error = null,
   children,
 }: PageContainerProps) {
+  const openSidebar = useMobileSidebar();
+
   return (
     <div className="flex flex-1 flex-col">
-      <Header title={title}>{action}</Header>
-      <main className="flex-1 p-6">
+      <Header title={title} onMenuClick={openSidebar ?? undefined}>{action}</Header>
+      <main className="flex-1 p-4 sm:p-6">
         {loading ? (
           <div className="flex h-64 items-center justify-center">
             <LoadingSpinner size="lg" />
@@ -45,7 +50,9 @@ export default function PageContainer({
             </div>
           </div>
         ) : (
-          children
+          <div className="animate-fadeIn">
+            {children}
+          </div>
         )}
       </main>
     </div>

@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -8,6 +9,8 @@ from sqlalchemy.exc import IntegrityError
 
 from app.database import engine
 from app.routers import applications, backups, dashboard, providers, servers, ssh_connections, ssh_keys
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -21,7 +24,7 @@ app = FastAPI(title="ServerAtlas", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -43,6 +46,7 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
@@ -53,4 +57,7 @@ async def health():
             await conn.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
-        return {"status": "unhealthy", "database": str(e)}
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "database": str(e)},
+        )

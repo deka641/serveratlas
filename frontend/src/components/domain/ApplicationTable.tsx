@@ -16,64 +16,50 @@ interface ApplicationTableProps {
 export default function ApplicationTable({ applications, onDelete }: ApplicationTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null);
 
-  const columns: Column<Record<string, unknown>>[] = [
+  const columns: Column<Application>[] = [
     {
       key: 'name',
       label: 'Name',
       sortable: true,
-      render: (row) => {
-        const app = row as unknown as Application;
-        return (
-          <Link href={`/applications/${app.id}`} className="font-medium text-blue-600 hover:text-blue-800">
-            {app.name}
-          </Link>
-        );
-      },
+      render: (app) => (
+        <Link href={`/applications/${app.id}`} className="font-medium text-blue-600 hover:text-blue-800">
+          {app.name}
+        </Link>
+      ),
     },
     {
       key: 'server_name',
       label: 'Server',
-      render: (row) => {
-        const app = row as unknown as Application;
-        return app.server_id ? (
+      render: (app) =>
+        app.server_id ? (
           <Link href={`/servers/${app.server_id}`} className="text-blue-600 hover:text-blue-800">
             {app.server_name || `Server #${app.server_id}`}
           </Link>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'app_type',
       label: 'Type',
-      render: (row) => {
-        const app = row as unknown as Application;
-        return app.app_type || '\u2014';
-      },
+      render: (app) => app.app_type || '\u2014',
     },
     {
       key: 'port',
       label: 'Port',
-      render: (row) => {
-        const app = row as unknown as Application;
-        return app.port !== null ? <span className="font-mono text-sm">{app.port}</span> : '\u2014';
-      },
+      render: (app) =>
+        app.port !== null ? <span className="font-mono text-sm">{app.port}</span> : '\u2014',
     },
     {
       key: 'status',
       label: 'Status',
-      render: (row) => {
-        const app = row as unknown as Application;
-        return <StatusBadge status={app.status} />;
-      },
+      render: (app) => <StatusBadge status={app.status} />,
     },
     {
       key: 'url',
       label: 'URL',
-      render: (row) => {
-        const app = row as unknown as Application;
-        return app.url ? (
+      render: (app) =>
+        app.url ? (
           <a
             href={app.url}
             target="_blank"
@@ -84,31 +70,27 @@ export default function ApplicationTable({ applications, onDelete }: Application
           </a>
         ) : (
           '\u2014'
-        );
-      },
+        ),
     },
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => {
-        const app = row as unknown as Application;
-        return (
-          <div className="flex items-center gap-2">
-            <Link href={`/applications/${app.id}/edit`}>
-              <Button variant="ghost" size="sm">Edit</Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(app)}>
-              Delete
-            </Button>
-          </div>
-        );
-      },
+      render: (app) => (
+        <div className="flex items-center gap-2">
+          <Link href={`/applications/${app.id}/edit`}>
+            <Button variant="ghost" size="sm">Edit</Button>
+          </Link>
+          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(app)}>
+            Delete
+          </Button>
+        </div>
+      ),
     },
   ];
 
   return (
     <>
-      <Table columns={columns} data={applications as unknown as Record<string, unknown>[]} />
+      <Table columns={columns} data={applications} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Application"

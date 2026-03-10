@@ -110,7 +110,7 @@ class DashboardCRUD:
         )
         covered_apps = (await db.execute(covered_stmt)).scalar() or 0
 
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        cutoff = datetime.utcnow() - timedelta(hours=24)
         failed_stmt = (
             select(func.count(Backup.id))
             .where(

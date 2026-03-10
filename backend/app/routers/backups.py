@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import backup_crud
@@ -16,7 +17,7 @@ def _backup_to_read(b) -> dict:
     return d
 
 
-@router.get("", response_model=list[BackupRead])
+@router.get("")
 async def list_backups(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     source_server_id: int | None = None, application_id: int | None = None,
@@ -27,7 +28,9 @@ async def list_backups(
         db, skip=skip, limit=limit, source_server_id=source_server_id,
         application_id=application_id, status=status, search=search,
     )
-    return [BackupRead.model_validate(_backup_to_read(b)) for b in backups]
+    total = await backup_crud.count_filtered(db, source_server_id=source_server_id, application_id=application_id, status=status, search=search)
+    data = [BackupRead.model_validate(_backup_to_read(b)).model_dump(mode="json") for b in backups]
+    return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
 
 
 @router.get("/{id}", response_model=BackupRead)

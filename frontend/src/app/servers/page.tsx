@@ -13,6 +13,13 @@ import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
 import EmptyState from '@/components/ui/EmptyState';
 import ServerTable from '@/components/domain/ServerTable';
+import Pagination from '@/components/ui/Pagination';
+import { exportToCsv } from '@/lib/export';
+import type { Server } from '@/lib/types';
+import { formatCost } from '@/lib/formatters';
+import { formatRAM, formatDisk } from '@/lib/formatters';
+
+const PAGE_SIZE = 100;
 
 const statusFilterOptions = [
   { value: '', label: 'All Statuses' },
@@ -29,6 +36,10 @@ export default function ServersPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [page, setPage] = useState(0);
+
+  // Reset page on filter change
+  useEffect(() => { setPage(0); }, [statusFilter, providerFilter, debouncedSearch]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -46,11 +57,13 @@ export default function ServersPage() {
       status: statusFilter || undefined,
       provider_id: providerFilter ? Number(providerFilter) : undefined,
       search: debouncedSearch || undefined,
+      skip: page * PAGE_SIZE,
+      limit: PAGE_SIZE,
     }),
-    [statusFilter, providerFilter, debouncedSearch]
+    [statusFilter, providerFilter, debouncedSearch, page]
   );
 
-  const { data: servers, loading, error, refetch } = useServers(params);
+  const { data: servers, total, loading, error, refetch } = useServers(params);
   const { data: providers } = useProviders();
 
   const providerFilterOptions = useMemo(
@@ -74,6 +87,24 @@ export default function ServersPage() {
     }
   }
 
+  function handleExportCsv() {
+    if (!servers || servers.length === 0) return;
+    exportToCsv<Server>(servers, [
+      { key: 'name', label: 'Name' },
+      { key: 'hostname', label: 'Hostname' },
+      { key: 'ip_v4', label: 'IP' },
+      { key: 'provider_name', label: 'Provider' },
+      { key: 'status', label: 'Status' },
+      { key: 'os', label: 'OS' },
+      { key: 'cpu_cores', label: 'CPU Cores' },
+      { key: 'ram_mb', label: 'RAM (MB)' },
+      { key: 'disk_gb', label: 'Disk (GB)' },
+      { key: 'location', label: 'Location' },
+      { key: 'monthly_cost', label: 'Monthly Cost' },
+      { key: 'cost_currency', label: 'Currency' },
+    ], 'servers.csv');
+  }
+
   return (
     <PageContainer
       title="Servers"
@@ -81,9 +112,12 @@ export default function ServersPage() {
       error={error}
       onRetry={refetch}
       action={
-        <Link href="/servers/new">
-          <Button>Add Server</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handleExportCsv}>Export CSV</Button>
+          <Link href="/servers/new">
+            <Button>Add Server</Button>
+          </Link>
+        </div>
       }
     >
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -124,7 +158,10 @@ export default function ServersPage() {
           }
         />
       ) : (
-        <ServerTable servers={servers ?? []} onDelete={handleDelete} />
+        <>
+          <ServerTable servers={servers ?? []} onDelete={handleDelete} />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        </>
       )}
     </PageContainer>
   );

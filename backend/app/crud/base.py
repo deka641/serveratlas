@@ -1,6 +1,6 @@
 from typing import Any, Generic, Type, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import Base
@@ -19,6 +19,10 @@ class CRUDBase(Generic[ModelType]):
     async def get_multi(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> list[ModelType]:
         result = await db.execute(select(self.model).offset(skip).limit(limit))
         return list(result.scalars().all())
+
+    async def count(self, db: AsyncSession) -> int:
+        result = await db.execute(select(func.count(self.model.id)))
+        return result.scalar() or 0
 
     async def create(self, db: AsyncSession, obj_in: dict[str, Any]) -> ModelType:
         db_obj = self.model(**obj_in)

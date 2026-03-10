@@ -15,14 +15,18 @@ const borderColorMap: Record<ServerStatus, string> = {
   decommissioned: 'border-l-red-500',
 };
 
+const needsAttention = (status: ServerStatus) =>
+  status === 'maintenance' || status === 'decommissioned';
+
 export default function ServerStatusGrid({ servers }: ServerStatusGridProps) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {servers.map((server) => (
+      {servers.map((server, index) => (
         <Link
           key={server.id}
           href={`/servers/${server.id}`}
-          className={`block rounded-lg border border-gray-200 border-l-4 bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${borderColorMap[server.status]}`}
+          className={`block rounded-lg border border-gray-200 border-l-4 bg-white p-4 shadow-sm transition-shadow hover:shadow-md animate-fadeInUp ${borderColorMap[server.status]} ${needsAttention(server.status) ? 'animate-attention-pulse' : ''}`}
+          style={{ animationDelay: `${index * 50}ms` }}
         >
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">

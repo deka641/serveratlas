@@ -52,6 +52,7 @@ export default function BackupHealthTable({ backups }: BackupHealthTableProps) {
       columns={columns}
       data={backups}
       emptyMessage="No recent backup activity."
+      rowClassName={(b) => b.last_run_status === 'failed' ? 'bg-red-50' : undefined}
     />
   );
 }

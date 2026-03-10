@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -9,7 +10,7 @@ from app.models.backup import Backup, BackupStatus
 from app.models.provider import Provider
 from app.models.server import Server, ServerStatus
 from app.models.ssh_key import SshKey
-from app.schemas.dashboard import CostByProvider, CostSummary, CurrencyTotal, DashboardStats, RecentBackup
+from app.schemas.dashboard import BackupCoverage, CostByProvider, CostSummary, CurrencyTotal, DashboardStats, RecentBackup
 
 
 class DashboardCRUD:
@@ -98,6 +99,42 @@ class DashboardCRUD:
             )
             for b in backups
         ]
+
+
+    async def get_backup_coverage(self, db: AsyncSession) -> BackupCoverage:
+        total_apps = (await db.execute(select(func.count(Application.id)))).scalar() or 0
+
+        covered_stmt = (
+            select(func.count(func.distinct(Backup.application_id)))
+            .where(Backup.application_id.isnot(None))
+        )
+        covered_apps = (await db.execute(covered_stmt)).scalar() or 0
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        failed_stmt = (
+            select(func.count(Backup.id))
+            .where(
+                Backup.last_run_status == BackupStatus.failed,
+                Backup.last_run_at >= cutoff,
+            )
+        )
+        failed_24h = (await db.execute(failed_stmt)).scalar() or 0
+
+        uncovered_stmt = (
+            select(Application.name)
+            .where(~Application.id.in_(
+                select(Backup.application_id).where(Backup.application_id.isnot(None))
+            ))
+        )
+        uncovered_result = await db.execute(uncovered_stmt)
+        uncovered_names = [row[0] for row in uncovered_result.all()]
+
+        return BackupCoverage(
+            total_applications=total_apps,
+            covered_applications=covered_apps,
+            failed_backups_24h=failed_24h,
+            uncovered_applications=uncovered_names,
+        )
 
 
 dashboard_crud = DashboardCRUD()

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useApplications } from '@/hooks/useApplications';
 import { useServers } from '@/hooks/useServers';
 import { api } from '@/lib/api';
-import type { AppStatus } from '@/lib/types';
+import type { Application } from '@/lib/types';
 import { useToast } from '@/components/ui/Toast';
 import PageContainer from '@/components/PageContainer';
 import Button from '@/components/ui/Button';
@@ -13,7 +13,11 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import EmptyState from '@/components/ui/EmptyState';
 import ApplicationTable from '@/components/domain/ApplicationTable';
+import Pagination from '@/components/ui/Pagination';
 import { useDebounce } from '@/hooks/useDebounce';
+import { exportToCsv } from '@/lib/export';
+
+const PAGE_SIZE = 100;
 
 const statusFilterOptions = [
   { value: '', label: 'All Statuses' },
@@ -28,11 +32,17 @@ export default function ApplicationsPage() {
   const [serverFilter, setServerFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [statusFilter, serverFilter, debouncedSearch]);
+
   const { data: servers } = useServers();
-  const { data: applications, loading, error, refetch } = useApplications({
+  const { data: applications, total, loading, error, refetch } = useApplications({
     status: statusFilter || undefined,
     server_id: serverFilter ? Number(serverFilter) : undefined,
     search: debouncedSearch || undefined,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
   });
   const { addToast } = useToast();
 
@@ -46,6 +56,18 @@ export default function ApplicationsPage() {
     }
   };
 
+  function handleExportCsv() {
+    if (!applications || applications.length === 0) return;
+    exportToCsv<Application>(applications, [
+      { key: 'name', label: 'Name' },
+      { key: 'server_name', label: 'Server' },
+      { key: 'app_type', label: 'Type' },
+      { key: 'port', label: 'Port' },
+      { key: 'status', label: 'Status' },
+      { key: 'url', label: 'URL' },
+    ], 'applications.csv');
+  }
+
   const serverFilterOptions = [
     { value: '', label: 'All Servers' },
     ...(servers || []).map((s) => ({ value: String(s.id), label: s.name })),
@@ -58,9 +80,12 @@ export default function ApplicationsPage() {
       error={error}
       onRetry={refetch}
       action={
-        <Link href="/applications/new">
-          <Button>Add Application</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handleExportCsv}>Export CSV</Button>
+          <Link href="/applications/new">
+            <Button>Add Application</Button>
+          </Link>
+        </div>
       }
     >
       <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -88,7 +113,10 @@ export default function ApplicationsPage() {
       </div>
 
       {applications && applications.length > 0 ? (
-        <ApplicationTable applications={applications} onDelete={handleDelete} />
+        <>
+          <ApplicationTable applications={applications} onDelete={handleDelete} />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        </>
       ) : !loading ? (
         <EmptyState
           message={searchTerm || statusFilter || serverFilter ? 'No applications match your filters' : 'No applications found'}

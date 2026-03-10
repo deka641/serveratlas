@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ApplicationBase(BaseModel):
@@ -13,6 +13,15 @@ class ApplicationBase(BaseModel):
     config_notes: str | None = None
     url: str | None = None
     notes: str | None = None
+
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v):
+        if v is None or v == "":
+            return None
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
 
 
 class ApplicationCreate(ApplicationBase):

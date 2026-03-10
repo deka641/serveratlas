@@ -53,3 +53,10 @@ class RecentBackup(BaseModel):
     application_name: str | None = None
     last_run_status: str
     last_run_at: str | None = None
+
+
+class BackupCoverage(BaseModel):
+    total_applications: int = 0
+    covered_applications: int = 0
+    failed_backups_24h: int = 0
+    uncovered_applications: list[str] = []

@@ -1,14 +1,27 @@
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 if TYPE_CHECKING:
     from app.schemas.application import ApplicationRead
     from app.schemas.server_ssh_key import ServerSshKeyRead
+
+
+def _validate_ip(v: str | None, version: int) -> str | None:
+    if v is None or v == "":
+        return None
+    try:
+        addr = ipaddress.ip_address(v)
+        if addr.version != version:
+            raise ValueError(f"Expected IPv{version} address")
+    except ValueError as e:
+        raise ValueError(f"Invalid IPv{version} address: {e}")
+    return v
 
 
 class ServerBase(BaseModel):
@@ -24,13 +37,24 @@ class ServerBase(BaseModel):
     location: str | None = None
     datacenter: str | None = None
     status: Literal["active", "inactive", "maintenance", "decommissioned"] = "active"
-    monthly_cost: Decimal | None = None
+    monthly_cost: Decimal | None = Field(None, ge=0)
     cost_currency: str | None = "EUR"
 
     @field_serializer('monthly_cost')
     @classmethod
     def serialize_cost(cls, v):
         return float(v) if v is not None else None
+
+    @field_validator('ip_v4')
+    @classmethod
+    def validate_ipv4(cls, v):
+        return _validate_ip(v, 4)
+
+    @field_validator('ip_v6')
+    @classmethod
+    def validate_ipv6(cls, v):
+        return _validate_ip(v, 6)
+
     login_user: str | None = None
     login_notes: str | None = None
     notes: str | None = None
@@ -53,11 +77,21 @@ class ServerUpdate(BaseModel):
     location: str | None = None
     datacenter: str | None = None
     status: Literal["active", "inactive", "maintenance", "decommissioned"] | None = None
-    monthly_cost: Decimal | None = None
+    monthly_cost: Decimal | None = Field(None, ge=0)
     cost_currency: str | None = None
     login_user: str | None = None
     login_notes: str | None = None
     notes: str | None = None
+
+    @field_validator('ip_v4')
+    @classmethod
+    def validate_ipv4(cls, v):
+        return _validate_ip(v, 4)
+
+    @field_validator('ip_v6')
+    @classmethod
+    def validate_ipv6(cls, v):
+        return _validate_ip(v, 6)
 
 
 class ServerRead(ServerBase):

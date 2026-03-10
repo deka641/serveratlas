@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useBackups } from '@/hooks/useBackups';
 import { useServers } from '@/hooks/useServers';
@@ -12,7 +12,10 @@ import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import EmptyState from '@/components/ui/EmptyState';
 import BackupTable from '@/components/domain/BackupTable';
+import Pagination from '@/components/ui/Pagination';
 import { useDebounce } from '@/hooks/useDebounce';
+
+const PAGE_SIZE = 100;
 
 const statusFilterOptions = [
   { value: '', label: 'All Statuses' },
@@ -27,11 +30,17 @@ export default function BackupsPage() {
   const [serverFilter, setServerFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [statusFilter, serverFilter, debouncedSearch]);
+
   const { data: servers } = useServers();
-  const { data: backups, loading, error, refetch } = useBackups({
+  const { data: backups, total, loading, error, refetch } = useBackups({
     status: statusFilter || undefined,
     source_server_id: serverFilter ? Number(serverFilter) : undefined,
     search: debouncedSearch || undefined,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
   });
   const { addToast } = useToast();
 
@@ -87,7 +96,10 @@ export default function BackupsPage() {
       </div>
 
       {backups && backups.length > 0 ? (
-        <BackupTable backups={backups} onDelete={handleDelete} />
+        <>
+          <BackupTable backups={backups} onDelete={handleDelete} />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        </>
       ) : !loading ? (
         <EmptyState
           message={searchTerm || statusFilter || serverFilter ? 'No backups match your filters' : 'No backups found'}

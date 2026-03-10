@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import application_crud, server_crud, ssh_connection_crud
+from app.crud import application_crud, server_crud, ssh_connection_crud, ssh_key_crud
 from app.database import get_db
 from app.schemas.application import ApplicationRead
 from app.schemas.server import ServerCreate, ServerRead, ServerReadDetail, ServerUpdate
@@ -26,14 +27,16 @@ def _server_to_read(server) -> dict:
     return d
 
 
-@router.get("", response_model=list[ServerRead])
+@router.get("")
 async def list_servers(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     status: str | None = None, provider_id: int | None = None, search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
     servers = await server_crud.get_multi_filtered(db, skip=skip, limit=limit, status=status, provider_id=provider_id, search=search)
-    return [_server_to_read(s) for s in servers]
+    total = await server_crud.count_filtered(db, status=status, provider_id=provider_id, search=search)
+    data = [ServerRead.model_validate(_server_to_read(s)).model_dump(mode="json") for s in servers]
+    return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
 
 
 @router.get("/{id}", response_model=ServerReadDetail)
@@ -83,7 +86,11 @@ async def get_server_applications(id: int, db: AsyncSession = Depends(get_db)):
     server = await server_crud.get(db, id)
     if not server:
         raise HTTPException(404, "Server not found")
-    return await application_crud.get_by_server(db, id)
+    apps = await application_crud.get_by_server(db, id)
+    return [
+        ApplicationRead.model_validate({**a.__dict__, "server_name": server.name})
+        for a in apps
+    ]
 
 
 @router.get("/{id}/ssh-keys", response_model=list[ServerSshKeyRead])
@@ -119,7 +126,13 @@ async def add_server_ssh_key(
     db: AsyncSession = Depends(get_db),
 ):
     assoc = await server_crud.add_ssh_key(db, id, key_id, data.model_dump())
-    return assoc
+    ssh_key = await ssh_key_crud.get(db, key_id)
+    server_obj = await server_crud.get(db, id)
+    return ServerSshKeyRead.model_validate({
+        **assoc.__dict__,
+        "ssh_key_name": ssh_key.name if ssh_key else None,
+        "server_name": server_obj.name if server_obj else None,
+    })
 
 
 @router.delete("/{id}/ssh-keys/{key_id}", status_code=204)

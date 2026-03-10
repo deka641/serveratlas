@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_connection_crud
@@ -19,10 +20,12 @@ def _conn_to_read(c) -> dict:
     }
 
 
-@router.get("", response_model=list[SshConnectionRead])
+@router.get("")
 async def list_ssh_connections(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
     connections = await ssh_connection_crud.get_multi(db, skip=skip, limit=limit, search=search)
-    return [SshConnectionRead.model_validate(_conn_to_read(c)) for c in connections]
+    total = await ssh_connection_crud.count_filtered(db, search=search)
+    data = [SshConnectionRead.model_validate(_conn_to_read(c)).model_dump(mode="json") for c in connections]
+    return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
 
 
 @router.get("/graph", response_model=ConnectivityGraph)

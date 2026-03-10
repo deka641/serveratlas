@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from app.config import settings
 from app.database import engine
 from app.routers import applications, backups, dashboard, providers, servers, ssh_connections, ssh_keys
 
@@ -23,10 +24,11 @@ app = FastAPI(title="ServerAtlas", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=False,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-Total-Count"],
+    expose_headers=["X-Total-Count"],
 )
 
 API_PREFIX = "/api/v1"

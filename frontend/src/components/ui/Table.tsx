@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, ReactNode } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect, ReactNode } from 'react';
 
 export interface Column<T> {
   key: string;
@@ -18,6 +18,7 @@ interface TableProps<T> {
   keyExtractor?: (item: T) => string | number;
   emptyMessage?: string;
   className?: string;
+  rowClassName?: (item: T) => string | undefined;
 }
 
 export default function Table<T extends object>({
@@ -27,6 +28,7 @@ export default function Table<T extends object>({
   keyExtractor,
   emptyMessage = 'No data available',
   className = '',
+  rowClassName,
 }: TableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -78,77 +80,98 @@ export default function Table<T extends object>({
     return '\u2014';
   };
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => {
+      setCanScrollRight(el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    check();
+    el.addEventListener('scroll', check);
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => { el.removeEventListener('scroll', check); observer.disconnect(); };
+  }, [data]);
+
   return (
-    <div className={`w-full overflow-x-auto ${className}`}>
-      <table className="w-full border-collapse text-left text-sm">
-        <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                className={`px-4 py-3 font-medium text-gray-700 ${
-                  col.sortable ? 'cursor-pointer select-none hover:bg-gray-100' : ''
-                }`}
-                onClick={col.sortable ? () => handleSort(col.key) : undefined}
-              >
-                <span className="inline-flex items-center gap-1">
-                  {col.label}
-                  {col.sortable && sortColumn === col.key && (
-                    <svg
-                      className={`h-4 w-4 transition-transform ${
-                        sortDirection === 'desc' ? 'rotate-180' : ''
-                      }`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                    </svg>
-                  )}
-                  {col.sortable && sortColumn !== col.key && (
-                    <svg
-                      className="h-4 w-4 text-gray-300"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                    </svg>
-                  )}
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedData.map((item, index) => (
-            <tr
-              key={getKey(item, index)}
-              className="border-b border-gray-100 transition-colors hover:bg-gray-50"
-            >
+    <div className={`relative w-full ${className}`}>
+      <div ref={scrollRef} className="w-full overflow-x-auto">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50">
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3 text-gray-700">
-                  {col.render
-                    ? col.render(item)
-                    : getCellValue(item, col.key)}
-                </td>
+                <th
+                  key={col.key}
+                  className={`px-4 py-3 font-medium text-gray-700 ${
+                    col.sortable ? 'cursor-pointer select-none hover:bg-gray-100' : ''
+                  }`}
+                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {col.label}
+                    {col.sortable && sortColumn === col.key && (
+                      <svg
+                        className={`h-4 w-4 transition-transform ${
+                          sortDirection === 'desc' ? 'rotate-180' : ''
+                        }`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                    {col.sortable && sortColumn !== col.key && (
+                      <svg
+                        className="h-4 w-4 text-gray-300"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                      </svg>
+                    )}
+                  </span>
+                </th>
               ))}
             </tr>
-          ))}
-          {data.length === 0 && (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-4 py-8 text-center text-gray-500"
+          </thead>
+          <tbody>
+            {sortedData.map((item, index) => (
+              <tr
+                key={getKey(item, index)}
+                className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${rowClassName?.(item) ?? ''}`}
               >
-                {emptyMessage}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                {columns.map((col) => (
+                  <td key={col.key} className="px-4 py-3 text-gray-700">
+                    {col.render
+                      ? col.render(item)
+                      : getCellValue(item, col.key)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {data.length === 0 && (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-8 text-center text-gray-500"
+                >
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {canScrollRight && (
+        <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-white to-transparent" />
+      )}
     </div>
   );
 }

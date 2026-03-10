@@ -181,3 +181,10 @@ export interface RecentBackup {
   last_run_status: string;
   last_run_at: string | null;
 }
+
+export interface BackupCoverage {
+  total_applications: number;
+  covered_applications: number;
+  failed_backups_24h: number;
+  uncovered_applications: string[];
+}

@@ -1,13 +1,10 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
+from app.crud.utils import escape_like as _escape_like
 from app.models.application import Application
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class ApplicationCRUD(CRUDBase[Application]):
@@ -29,6 +26,21 @@ class ApplicationCRUD(CRUDBase[Application]):
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_filtered(
+        self, db: AsyncSession,
+        server_id: int | None = None, status: str | None = None, search: str | None = None,
+    ) -> int:
+        stmt = select(func.count(Application.id))
+        if server_id:
+            stmt = stmt.where(Application.server_id == server_id)
+        if status:
+            stmt = stmt.where(Application.status == status)
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(Application.name.ilike(f"%{escaped}%", escape="\\"))
+        result = await db.execute(stmt)
+        return result.scalar() or 0
 
     async def get_detail(self, db: AsyncSession, id: int) -> Application | None:
         stmt = (

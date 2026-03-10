@@ -10,7 +10,7 @@ class BackupBase(BaseModel):
     source_server_id: int
     target_server_id: int | None = None
     frequency: Literal["hourly", "daily", "weekly", "monthly", "manual"] = "daily"
-    retention_days: int | None = Field(None, ge=1)
+    retention_days: int | None = Field(None, ge=1, le=3650)
     storage_path: str | None = None
     last_run_at: datetime | None = None
     last_run_status: Literal["success", "failed", "running", "never_run"] = "never_run"
@@ -27,7 +27,7 @@ class BackupUpdate(BaseModel):
     source_server_id: int | None = None
     target_server_id: int | None = None
     frequency: Literal["hourly", "daily", "weekly", "monthly", "manual"] | None = None
-    retention_days: int | None = Field(None, ge=1)
+    retention_days: int | None = Field(None, ge=1, le=3650)
     storage_path: str | None = None
     last_run_at: datetime | None = None
     last_run_status: Literal["success", "failed", "running", "never_run"] | None = None

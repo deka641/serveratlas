@@ -8,6 +8,7 @@ import Table, { Column } from '@/components/ui/Table';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Button from '@/components/ui/Button';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import CopyableText from '@/components/ui/CopyableText';
 
 interface ServerTableProps {
   servers: Server[];
@@ -34,9 +35,12 @@ export default function ServerTable({ servers, onDelete }: ServerTableProps) {
     {
       key: 'ip_v4',
       label: 'IP',
-      render: (server) => (
-        <span className="font-mono text-xs">{server.ip_v4 ?? '\u2014'}</span>
-      ),
+      render: (server) =>
+        server.ip_v4 ? (
+          <CopyableText text={server.ip_v4} className="font-mono text-xs" />
+        ) : (
+          '\u2014'
+        ),
     },
     {
       key: 'status',

@@ -1,16 +1,18 @@
-import { ReactNode } from 'react';
+import { CSSProperties, ReactNode } from 'react';
 
 interface CardProps {
   title?: string;
   children: ReactNode;
   className?: string;
   noPadding?: boolean;
+  style?: CSSProperties;
 }
 
-export default function Card({ title, children, className = '', noPadding = false }: CardProps) {
+export default function Card({ title, children, className = '', noPadding = false, style }: CardProps) {
   return (
     <div
       className={`rounded-lg border border-gray-200 bg-white shadow-sm ${className}`}
+      style={style}
     >
       {title && (
         <div className="border-b border-gray-200 px-6 py-4">

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud
@@ -8,7 +9,7 @@ from app.schemas.application import ApplicationCreate, ApplicationRead, Applicat
 router = APIRouter(prefix="/applications", tags=["applications"])
 
 
-@router.get("", response_model=list[ApplicationRead])
+@router.get("")
 async def list_applications(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     server_id: int | None = None, status: str | None = None,
@@ -16,12 +17,14 @@ async def list_applications(
     db: AsyncSession = Depends(get_db),
 ):
     apps = await application_crud.get_multi_filtered(db, skip=skip, limit=limit, server_id=server_id, status=status, search=search)
-    return [
+    total = await application_crud.count_filtered(db, server_id=server_id, status=status, search=search)
+    data = [
         ApplicationRead.model_validate({
             **a.__dict__,
             "server_name": a.server.name if a.server else None,
-        }) for a in apps
+        }).model_dump(mode="json") for a in apps
     ]
+    return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
 
 
 @router.get("/{id}", response_model=ApplicationRead)

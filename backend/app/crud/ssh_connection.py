@@ -1,15 +1,12 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
+from app.crud.utils import escape_like as _escape_like
 from app.models.server import Server
 from app.models.ssh_connection import SshConnection
 from app.schemas.ssh_connection import ConnectivityGraph, GraphEdge, GraphNode
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class SshConnectionCRUD(CRUDBase[SshConnection]):
@@ -31,6 +28,19 @@ class SshConnectionCRUD(CRUDBase[SshConnection]):
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_filtered(
+        self, db: AsyncSession, search: str | None = None,
+    ) -> int:
+        stmt = select(func.count(SshConnection.id))
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                SshConnection.purpose.ilike(f"%{escaped}%", escape="\\") |
+                SshConnection.ssh_user.ilike(f"%{escaped}%", escape="\\")
+            )
+        result = await db.execute(stmt)
+        return result.scalar() or 0
 
     async def get_detail(self, db: AsyncSession, id: int) -> SshConnection | None:
         stmt = (

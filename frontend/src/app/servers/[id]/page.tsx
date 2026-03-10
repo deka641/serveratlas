@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import type { SshConnection, Backup, ServerSshKey, SshKey, Application } from '@/lib/types';
 import { api } from '@/lib/api';
-import { formatCost, formatDateTime } from '@/lib/formatters';
+import { formatCost, formatDateTime, formatRAM, formatDisk } from '@/lib/formatters';
 import { useServer } from '@/hooks/useServers';
 import { useBackups } from '@/hooks/useBackups';
 import { useToast } from '@/components/ui/Toast';
@@ -18,6 +18,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import CopyableText from '@/components/ui/CopyableText';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
 
@@ -81,7 +82,8 @@ export default function ServerDetailPage() {
 
   const loadAvailableKeys = useCallback(async () => {
     try {
-      const allKeys = await api.listSshKeys();
+      const result = await api.listSshKeys({ limit: 500 });
+      const allKeys = result.items;
       const assignedIds = new Set((server?.ssh_keys ?? []).map((k) => k.ssh_key_id));
       setAvailableKeys(allKeys.filter((k) => !assignedIds.has(k.id)));
     } catch {
@@ -368,17 +370,25 @@ export default function ServerDetailPage() {
                   <DetailRow
                     label="IPv4"
                     value={
-                      server.ip_v4 && (
-                        <span className="font-mono text-sm">{server.ip_v4}</span>
-                      )
+                      server.ip_v4 ? (
+                        <CopyableText text={server.ip_v4} className="font-mono text-sm" />
+                      ) : null
                     }
                   />
                   <DetailRow
                     label="IPv6"
                     value={
-                      server.ip_v6 && (
-                        <span className="font-mono text-sm">{server.ip_v6}</span>
-                      )
+                      server.ip_v6 ? (
+                        <CopyableText text={server.ip_v6} className="font-mono text-sm" />
+                      ) : null
+                    }
+                  />
+                  <DetailRow
+                    label="Hostname"
+                    value={
+                      server.hostname ? (
+                        <CopyableText text={server.hostname} className="font-mono text-sm" />
+                      ) : null
                     }
                   />
                 </dl>
@@ -392,11 +402,11 @@ export default function ServerDetailPage() {
                   />
                   <DetailRow
                     label="RAM"
-                    value={server.ram_mb != null ? `${server.ram_mb} MB` : null}
+                    value={formatRAM(server.ram_mb)}
                   />
                   <DetailRow
                     label="Disk"
-                    value={server.disk_gb != null ? `${server.disk_gb} GB` : null}
+                    value={formatDisk(server.disk_gb)}
                   />
                 </dl>
               </Card>

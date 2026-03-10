@@ -8,3 +8,27 @@
 .animate-fadeIn {
   animation: fadeIn 200ms ease-out;
 }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 400ms ease-out both;
+}
+
+@keyframes attentionPulse {
+  0%, 100% { border-color: inherit; }
+  50% { border-left-color: rgba(239, 68, 68, 0.6); }
+}
+
+.animate-attention-pulse {
+  animation: attentionPulse 2s ease-in-out infinite;
+}

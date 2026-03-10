@@ -26,7 +26,7 @@ export default function DashboardPage() {
   } = useData(() => api.getCostSummary());
 
   const {
-    data: servers,
+    data: serversResult,
     loading: serversLoading,
     error: serversError,
   } = useData(() => api.listServers());
@@ -36,6 +36,12 @@ export default function DashboardPage() {
     loading: backupsLoading,
   } = useData(() => api.getRecentBackups());
 
+  const {
+    data: backupCoverage,
+    loading: coverageLoading,
+  } = useData(() => api.getBackupCoverage());
+
+  const servers = serversResult?.items ?? null;
   const error = statsError || costError || serversError;
 
   return (
@@ -45,10 +51,10 @@ export default function DashboardPage() {
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
             Overview
           </h2>
-          {statsLoading ? (
+          {statsLoading || coverageLoading ? (
             <SectionSkeleton height="h-24" />
           ) : stats ? (
-            <StatsCards stats={stats} />
+            <StatsCards stats={stats} backupCoverage={backupCoverage ?? undefined} />
           ) : null}
         </section>
 
@@ -67,6 +73,17 @@ export default function DashboardPage() {
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
             Backup Health
           </h2>
+          {backupCoverage && backupCoverage.failed_backups_24h > 0 && (
+            <div className="mb-4 flex items-center gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3">
+              <svg className="h-5 w-5 flex-shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="text-sm font-medium text-red-800">
+                {backupCoverage.failed_backups_24h} backup{backupCoverage.failed_backups_24h > 1 ? 's' : ''} failed in the last 24 hours.{' '}
+                <Link href="/backups?status=failed" className="underline hover:text-red-900">View failed backups</Link>
+              </span>
+            </div>
+          )}
           {backupsLoading ? (
             <SectionSkeleton height="h-32" />
           ) : recentBackups && recentBackups.length > 0 ? (

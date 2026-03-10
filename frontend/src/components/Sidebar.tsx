@@ -91,8 +91,19 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('serveratlas-sidebar-collapsed') === 'true';
+  });
   const pathname = usePathname();
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('serveratlas-sidebar-collapsed', String(next));
+      return next;
+    });
+  };
 
   // Close mobile sidebar on navigation
   useEffect(() => {
@@ -124,7 +135,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           <span className="text-lg font-bold tracking-wide">ServerAtlas</span>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           className="hidden rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white md:block"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -162,7 +173,11 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
             title={collapsed ? item.label : undefined}
           >
             {item.icon}
-            {!collapsed && <span>{item.label}</span>}
+            {!collapsed && (
+              <span className="transition-opacity duration-200">
+                {item.label}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

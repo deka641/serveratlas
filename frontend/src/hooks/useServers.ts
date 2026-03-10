@@ -2,8 +2,12 @@
 import { api } from '@/lib/api';
 import { useData } from './useData';
 
-export function useServers(params?: { status?: string; provider_id?: number; search?: string }) {
-  return useData(() => api.listServers(params), [params?.status, params?.provider_id, params?.search]);
+export function useServers(params?: { status?: string; provider_id?: number; search?: string; skip?: number; limit?: number }) {
+  const { data, loading, error, refetch } = useData(
+    () => api.listServers(params),
+    [params?.status, params?.provider_id, params?.search, params?.skip, params?.limit],
+  );
+  return { data: data?.items ?? null, total: data?.total ?? 0, loading, error, refetch };
 }
 
 export function useServer(id: number) {

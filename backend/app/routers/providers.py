@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import provider_crud
@@ -9,16 +10,17 @@ from app.schemas.server import ServerRead
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
-@router.get("", response_model=list[ProviderRead])
+@router.get("")
 async def list_providers(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
     rows = await provider_crud.get_multi(db, skip=skip, limit=limit, search=search)
+    total = await provider_crud.count_filtered(db, search=search)
     result = []
     for row in rows:
         p = row["provider"]
         data = ProviderRead.model_validate(p)
         data.server_count = row["server_count"]
-        result.append(data)
-    return result
+        result.append(data.model_dump(mode="json"))
+    return JSONResponse(content=result, headers={"X-Total-Count": str(total)})
 
 
 @router.get("/{id}", response_model=ProviderRead)

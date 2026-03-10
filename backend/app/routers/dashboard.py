@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import dashboard_crud
 from app.database import get_db
-from app.schemas.dashboard import CostSummary, DashboardStats, RecentBackup
+from app.schemas.dashboard import BackupCoverage, CostSummary, DashboardStats, RecentBackup
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -21,3 +21,8 @@ async def get_cost_summary(db: AsyncSession = Depends(get_db)):
 @router.get("/recent-backups", response_model=list[RecentBackup])
 async def get_recent_backups(db: AsyncSession = Depends(get_db)):
     return await dashboard_crud.get_recent_backups(db)
+
+
+@router.get("/backup-coverage", response_model=BackupCoverage)
+async def get_backup_coverage(db: AsyncSession = Depends(get_db)):
+    return await dashboard_crud.get_backup_coverage(db)

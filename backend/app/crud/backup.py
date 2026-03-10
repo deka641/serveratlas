@@ -1,13 +1,10 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
+from app.crud.utils import escape_like as _escape_like
 from app.models.backup import Backup, BackupStatus
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class BackupCRUD(CRUDBase[Backup]):
@@ -35,6 +32,24 @@ class BackupCRUD(CRUDBase[Backup]):
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_filtered(
+        self, db: AsyncSession,
+        source_server_id: int | None = None, application_id: int | None = None,
+        status: str | None = None, search: str | None = None,
+    ) -> int:
+        stmt = select(func.count(Backup.id))
+        if source_server_id:
+            stmt = stmt.where(Backup.source_server_id == source_server_id)
+        if application_id:
+            stmt = stmt.where(Backup.application_id == application_id)
+        if status:
+            stmt = stmt.where(Backup.last_run_status == status)
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(Backup.name.ilike(f"%{escaped}%", escape="\\"))
+        result = await db.execute(stmt)
+        return result.scalar() or 0
 
     async def get_detail(self, db: AsyncSession, id: int) -> Backup | None:
         stmt = (

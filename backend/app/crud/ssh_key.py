@@ -1,14 +1,11 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
+from app.crud.utils import escape_like as _escape_like
 from app.models.server_ssh_key import ServerSshKey
 from app.models.ssh_key import SshKey
-
-
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class SshKeyCRUD(CRUDBase[SshKey]):
@@ -26,6 +23,19 @@ class SshKeyCRUD(CRUDBase[SshKey]):
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_filtered(
+        self, db: AsyncSession, search: str | None = None,
+    ) -> int:
+        stmt = select(func.count(SshKey.id))
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                SshKey.name.ilike(f"%{escaped}%", escape="\\") |
+                SshKey.fingerprint.ilike(f"%{escaped}%", escape="\\")
+            )
+        result = await db.execute(stmt)
+        return result.scalar() or 0
 
     async def get_with_servers(self, db: AsyncSession, id: int) -> SshKey | None:
         stmt = (

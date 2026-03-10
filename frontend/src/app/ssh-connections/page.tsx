@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useSshConnections } from '@/hooks/useSshConnections';
 import { api } from '@/lib/api';
@@ -10,13 +10,22 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import EmptyState from '@/components/ui/EmptyState';
 import SshConnectionTable from '@/components/domain/SshConnectionTable';
+import Pagination from '@/components/ui/Pagination';
 import { useDebounce } from '@/hooks/useDebounce';
+
+const PAGE_SIZE = 100;
 
 export default function SshConnectionsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
-  const { data: connections, loading, error, refetch } = useSshConnections({
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [debouncedSearch]);
+
+  const { data: connections, total, loading, error, refetch } = useSshConnections({
     search: debouncedSearch || undefined,
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
   });
   const { addToast } = useToast();
 
@@ -50,7 +59,10 @@ export default function SshConnectionsPage() {
         />
       </div>
       {connections && connections.length > 0 ? (
-        <SshConnectionTable connections={connections} onDelete={handleDelete} />
+        <>
+          <SshConnectionTable connections={connections} onDelete={handleDelete} />
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        </>
       ) : !loading ? (
         <EmptyState
           message={searchTerm ? 'No connections match your search' : 'No SSH connections found'}

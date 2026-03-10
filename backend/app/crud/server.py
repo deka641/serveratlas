@@ -1,18 +1,14 @@
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
+from app.crud.utils import escape_like as _escape_like
 from app.models.provider import Provider
 from app.models.server import Server
 from app.models.server_ssh_key import ServerSshKey
-
-
-def _escape_like(value: str) -> str:
-    """Escape special LIKE characters so they match literally."""
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class ServerCRUD(CRUDBase[Server]):
@@ -35,6 +31,25 @@ class ServerCRUD(CRUDBase[Server]):
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_filtered(
+        self, db: AsyncSession,
+        status: str | None = None, provider_id: int | None = None, search: str | None = None
+    ) -> int:
+        stmt = select(func.count(Server.id))
+        if status:
+            stmt = stmt.where(Server.status == status)
+        if provider_id:
+            stmt = stmt.where(Server.provider_id == provider_id)
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(
+                Server.name.ilike(f"%{escaped}%", escape="\\") |
+                Server.hostname.ilike(f"%{escaped}%", escape="\\") |
+                Server.ip_v4.ilike(f"%{escaped}%", escape="\\")
+            )
+        result = await db.execute(stmt)
+        return result.scalar() or 0
 
     async def get_with_provider(self, db: AsyncSession, id: int) -> Server | None:
         stmt = (

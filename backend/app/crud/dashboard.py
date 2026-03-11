@@ -54,11 +54,9 @@ class DashboardCRUD:
 
         by_provider = []
         totals_map: dict[str, Decimal] = {}
-        total = Decimal("0.00")
         for name, cost, currency, count in rows:
             cost_val = Decimal(str(cost))
             cur = currency or "EUR"
-            total += cost_val
             totals_map[cur] = totals_map.get(cur, Decimal("0.00")) + cost_val
             by_provider.append(CostByProvider(
                 provider_name=name, total_cost=cost_val, currency=cur, server_count=count
@@ -69,7 +67,7 @@ class DashboardCRUD:
         ]
 
         return CostSummary(
-            total_monthly_cost=total,
+            total_monthly_cost=Decimal("0.00"),
             by_provider=by_provider,
             totals_by_currency=totals_by_currency,
         )

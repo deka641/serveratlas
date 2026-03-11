@@ -24,7 +24,8 @@ export default function CopyableText({ text, className = '' }: CopyableTextProps
       <span>{text}</span>
       <button
         onClick={handleCopy}
-        className="inline-flex opacity-0 transition-opacity group-hover:opacity-100"
+        className="inline-flex opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+        aria-label="Copy to clipboard"
         title="Copy to clipboard"
         type="button"
       >

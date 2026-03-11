@@ -11,9 +11,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 interface ApplicationTableProps {
   applications: Application[];
   onDelete: (id: number) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
-export default function ApplicationTable({ applications, onDelete }: ApplicationTableProps) {
+export default function ApplicationTable({ applications, onDelete, selectable, selectedIds, onSelectionChange }: ApplicationTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null);
 
   const columns: Column<Application>[] = [
@@ -90,7 +93,7 @@ export default function ApplicationTable({ applications, onDelete }: Application
 
   return (
     <>
-      <Table columns={columns} data={applications} />
+      <Table columns={columns} data={applications} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Application"

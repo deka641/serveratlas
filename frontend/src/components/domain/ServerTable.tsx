@@ -13,9 +13,12 @@ import CopyableText from '@/components/ui/CopyableText';
 interface ServerTableProps {
   servers: Server[];
   onDelete: (id: number) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
-export default function ServerTable({ servers, onDelete }: ServerTableProps) {
+export default function ServerTable({ servers, onDelete, selectable, selectedIds, onSelectionChange }: ServerTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<Server | null>(null);
 
   const columns: Column<Server>[] = [
@@ -47,6 +50,19 @@ export default function ServerTable({ servers, onDelete }: ServerTableProps) {
       label: 'Status',
       sortable: true,
       render: (server) => <StatusBadge status={server.status} />,
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      render: (server) => (
+        <div className="flex flex-wrap gap-1">
+          {(server.tags || []).map((tag) => (
+            <span key={tag.id} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: tag.color }}>
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      ),
     },
     {
       key: 'provider_name',
@@ -90,7 +106,13 @@ export default function ServerTable({ servers, onDelete }: ServerTableProps) {
 
   return (
     <>
-      <Table columns={columns} data={servers} />
+      <Table
+        columns={columns}
+        data={servers}
+        selectable={selectable}
+        selectedIds={selectedIds}
+        onSelectionChange={onSelectionChange}
+      />
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete Server"

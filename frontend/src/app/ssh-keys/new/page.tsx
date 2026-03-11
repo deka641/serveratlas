@@ -13,15 +13,19 @@ export default function NewSshKeyPage() {
   const router = useRouter();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (data: Partial<SshKey>) => {
     setLoading(true);
+    setFormError(null);
     try {
       await api.createSshKey(data);
       addToast('success', 'SSH key created successfully');
       router.push('/ssh-keys');
-    } catch {
-      addToast('error', 'Failed to create SSH key');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create SSH key';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setLoading(false);
     }
@@ -30,7 +34,7 @@ export default function NewSshKeyPage() {
   return (
     <PageContainer title="New SSH Key" breadcrumbs={[{ label: 'SSH Keys', href: '/ssh-keys' }, { label: 'New SSH Key' }]}>
       <Card>
-        <SshKeyForm onSubmit={handleSubmit} loading={loading} />
+        <SshKeyForm onSubmit={handleSubmit} loading={loading} error={formError} />
       </Card>
     </PageContainer>
   );

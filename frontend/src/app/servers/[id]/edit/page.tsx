@@ -18,15 +18,19 @@ export default function EditServerPage() {
 
   const { data: server, loading: serverLoading, error } = useServer(id);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   async function handleSubmit(data: Partial<Server>) {
     setSaving(true);
+    setFormError(null);
     try {
       await api.updateServer(id, data);
       addToast('success', 'Server updated successfully');
       router.push(`/servers/${id}`);
-    } catch {
-      addToast('error', 'Failed to update server');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update server';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setSaving(false);
     }
@@ -45,6 +49,7 @@ export default function EditServerPage() {
             initialData={server}
             onSubmit={handleSubmit}
             loading={saving}
+            error={formError}
           />
         </Card>
       )}

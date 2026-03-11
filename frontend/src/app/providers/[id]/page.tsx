@@ -14,6 +14,7 @@ import { useProvider, useProviderServers } from '@/hooks/useProviders';
 import { api } from '@/lib/api';
 import { formatDate, formatCost } from '@/lib/formatters';
 import type { Server } from '@/lib/types';
+import DetailSkeleton from '@/components/ui/DetailSkeleton';
 
 export default function ProviderDetailPage() {
   const params = useParams();
@@ -72,7 +73,6 @@ export default function ProviderDetailPage() {
     <PageContainer
       title={provider?.name ?? 'Provider'}
       breadcrumbs={[{ label: 'Providers', href: '/providers' }, { label: provider?.name ?? 'Provider' }]}
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -88,7 +88,7 @@ export default function ProviderDetailPage() {
         )
       }
     >
-      {provider && (
+      {loading ? <DetailSkeleton cards={3} fieldsPerCard={3} /> : provider && (
         <div className="space-y-6">
           <Card title="Provider Details">
             <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">

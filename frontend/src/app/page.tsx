@@ -3,11 +3,14 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useData } from '@/hooks/useData';
+import { formatDateTime } from '@/lib/formatters';
+import type { Activity } from '@/lib/types';
 import PageContainer from '@/components/PageContainer';
 import StatsCards from '@/components/domain/StatsCards';
 import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
 import CostOverview from '@/components/domain/CostOverview';
 import BackupHealthTable from '@/components/domain/BackupHealthTable';
+import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import SectionSkeleton from '@/components/ui/SectionSkeleton';
 
@@ -41,11 +44,27 @@ export default function DashboardPage() {
     loading: coverageLoading,
   } = useData(() => api.getBackupCoverage());
 
+  const {
+    data: activitiesResult,
+    loading: activitiesLoading,
+  } = useData(() => api.listActivities({ limit: 10 }));
+
+  const activities = activitiesResult?.items ?? null;
+
   const servers = serversResult?.items ?? null;
   const error = statsError || costError || serversError;
 
   return (
-    <PageContainer title="Dashboard" error={error} onRetry={refetchStats}>
+    <PageContainer
+      title="Dashboard"
+      error={error}
+      onRetry={refetchStats}
+      action={
+        <Link href="/report">
+          <Button variant="secondary">Print Report</Button>
+        </Link>
+      }
+    >
       <div className="space-y-8">
         <section>
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
@@ -123,7 +142,62 @@ export default function DashboardPage() {
             </Card>
           )}
         </section>
+
+        <section>
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">
+            Recent Activity
+          </h2>
+          {activitiesLoading ? (
+            <SectionSkeleton height="h-48" />
+          ) : activities && activities.length > 0 ? (
+            <Card noPadding>
+              <ul className="divide-y divide-gray-100">
+                {activities.map((activity) => (
+                  <li key={activity.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                    <span className="flex-shrink-0 text-xs text-gray-500 w-40">
+                      {formatDateTime(activity.created_at)}
+                    </span>
+                    <ActivityActionBadge action={activity.action} />
+                    <span className="text-gray-600">{activity.entity_type}</span>
+                    <Link
+                      href={activityEntityUrl(activity)}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
+                    >
+                      {activity.entity_name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : (
+            <Card>
+              <p className="text-sm text-gray-500">No recent activity.</p>
+            </Card>
+          )}
+        </section>
       </div>
     </PageContainer>
+  );
+}
+
+function activityEntityUrl(activity: Activity): string {
+  const typeMap: Record<string, string> = {
+    ssh_key: 'ssh-keys',
+    ssh_connection: 'ssh-connections',
+  };
+  const urlSegment = typeMap[activity.entity_type] ?? `${activity.entity_type}s`;
+  return `/${urlSegment}/${activity.entity_id}`;
+}
+
+function ActivityActionBadge({ action }: { action: string }) {
+  let colorClasses = 'bg-gray-100 text-gray-700';
+  if (action === 'created') colorClasses = 'bg-green-100 text-green-700';
+  else if (action === 'updated') colorClasses = 'bg-blue-100 text-blue-700';
+  else if (action === 'deleted') colorClasses = 'bg-red-100 text-red-700';
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colorClasses}`}>
+      {action}
+    </span>
   );
 }

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
+from app.schemas.tag import TagRead
+
 if TYPE_CHECKING:
     from app.schemas.application import ApplicationRead
     from app.schemas.server_ssh_key import ServerSshKeyRead
@@ -97,6 +99,7 @@ class ServerUpdate(BaseModel):
 class ServerRead(ServerBase):
     id: int
     provider_name: str | None = None
+    tags: list[TagRead] = []
     created_at: datetime
     updated_at: datetime
 

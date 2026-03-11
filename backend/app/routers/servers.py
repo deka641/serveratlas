@@ -1,8 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud, server_crud, ssh_connection_crud, ssh_key_crud
+from app.crud.activity import activity_crud
+
+limiter = Limiter(key_func=get_remote_address)
 from app.database import get_db
 from app.schemas.application import ApplicationRead
 from app.schemas.server import ServerCreate, ServerRead, ServerReadDetail, ServerUpdate
@@ -10,6 +16,10 @@ from app.schemas.server_ssh_key import ServerSshKeyCreate, ServerSshKeyRead
 from app.schemas.ssh_connection import SshConnectionRead
 
 router = APIRouter(prefix="/servers", tags=["servers"])
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
 
 
 def _server_to_read(server) -> dict:
@@ -23,6 +33,10 @@ def _server_to_read(server) -> dict:
         "login_user": server.login_user, "login_notes": server.login_notes,
         "notes": server.notes, "created_at": server.created_at, "updated_at": server.updated_at,
         "provider_name": server.provider.name if server.provider else None,
+        "tags": [
+            {"id": st.tag.id, "name": st.tag.name, "color": st.tag.color}
+            for st in (server.server_tags if hasattr(server, 'server_tags') and server.server_tags else [])
+        ],
     }
     return d
 
@@ -31,12 +45,20 @@ def _server_to_read(server) -> dict:
 async def list_servers(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     status: str | None = None, provider_id: int | None = None, search: str | None = None,
+    tag_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    servers = await server_crud.get_multi_filtered(db, skip=skip, limit=limit, status=status, provider_id=provider_id, search=search)
-    total = await server_crud.count_filtered(db, status=status, provider_id=provider_id, search=search)
+    servers = await server_crud.get_multi_filtered(db, skip=skip, limit=limit, status=status, provider_id=provider_id, search=search, tag_id=tag_id)
+    total = await server_crud.count_filtered(db, status=status, provider_id=provider_id, search=search, tag_id=tag_id)
     data = [ServerRead.model_validate(_server_to_read(s)).model_dump(mode="json") for s in servers]
     return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
+
+
+@router.post("/bulk-delete", status_code=204)
+@limiter.limit("30/minute")
+async def bulk_delete_servers(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
+    for server_id in body.ids[:100]:
+        await server_crud.delete(db, server_id)
 
 
 @router.get("/{id}", response_model=ServerReadDetail)
@@ -59,26 +81,33 @@ async def get_server(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=ServerRead, status_code=201)
-async def create_server(data: ServerCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def create_server(request: Request, data: ServerCreate, db: AsyncSession = Depends(get_db)):
     created = await server_crud.create(db, data.model_dump())
     server = await server_crud.get_with_provider(db, created.id)
+    await activity_crud.log_activity(db, "server", server.id, data.name, "created")
     return _server_to_read(server)
 
 
 @router.put("/{id}", response_model=ServerRead)
-async def update_server(id: int, data: ServerUpdate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def update_server(request: Request, id: int, data: ServerUpdate, db: AsyncSession = Depends(get_db)):
     updated = await server_crud.update(db, id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(404, "Server not found")
     server = await server_crud.get_with_provider(db, updated.id)
+    await activity_crud.log_activity(db, "server", id, data.name or server.name, "updated", data.model_dump(exclude_unset=True))
     return _server_to_read(server)
 
 
 @router.delete("/{id}", status_code=204)
-async def delete_server(id: int, db: AsyncSession = Depends(get_db)):
-    deleted = await server_crud.delete(db, id)
-    if not deleted:
+@limiter.limit("30/minute")
+async def delete_server(request: Request, id: int, db: AsyncSession = Depends(get_db)):
+    server = await server_crud.get(db, id)
+    if not server:
         raise HTTPException(404, "Server not found")
+    await server_crud.delete(db, id)
+    await activity_crud.log_activity(db, "server", id, server.name, "deleted")
 
 
 @router.get("/{id}/applications", response_model=list[ApplicationRead])

@@ -9,18 +9,25 @@ from app.crud.utils import escape_like as _escape_like
 from app.models.provider import Provider
 from app.models.server import Server
 from app.models.server_ssh_key import ServerSshKey
+from app.models.tag import ServerTag
 
 
 class ServerCRUD(CRUDBase[Server]):
     async def get_multi_filtered(
         self, db: AsyncSession, skip: int = 0, limit: int = 100,
-        status: str | None = None, provider_id: int | None = None, search: str | None = None
+        status: str | None = None, provider_id: int | None = None,
+        search: str | None = None, tag_id: int | None = None
     ) -> list[Server]:
-        stmt = select(Server).outerjoin(Provider).options(selectinload(Server.provider))
+        stmt = select(Server).outerjoin(Provider).options(
+            selectinload(Server.provider),
+            selectinload(Server.server_tags).selectinload(ServerTag.tag),
+        )
         if status:
             stmt = stmt.where(Server.status == status)
         if provider_id:
             stmt = stmt.where(Server.provider_id == provider_id)
+        if tag_id:
+            stmt = stmt.join(ServerTag, ServerTag.server_id == Server.id).where(ServerTag.tag_id == tag_id)
         if search:
             escaped = _escape_like(search)
             stmt = stmt.where(
@@ -34,13 +41,16 @@ class ServerCRUD(CRUDBase[Server]):
 
     async def count_filtered(
         self, db: AsyncSession,
-        status: str | None = None, provider_id: int | None = None, search: str | None = None
+        status: str | None = None, provider_id: int | None = None,
+        search: str | None = None, tag_id: int | None = None
     ) -> int:
         stmt = select(func.count(Server.id))
         if status:
             stmt = stmt.where(Server.status == status)
         if provider_id:
             stmt = stmt.where(Server.provider_id == provider_id)
+        if tag_id:
+            stmt = stmt.join(ServerTag, ServerTag.server_id == Server.id).where(ServerTag.tag_id == tag_id)
         if search:
             escaped = _escape_like(search)
             stmt = stmt.where(
@@ -55,7 +65,10 @@ class ServerCRUD(CRUDBase[Server]):
         stmt = (
             select(Server)
             .where(Server.id == id)
-            .options(selectinload(Server.provider))
+            .options(
+                selectinload(Server.provider),
+                selectinload(Server.server_tags).selectinload(ServerTag.tag),
+            )
         )
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
@@ -71,6 +84,7 @@ class ServerCRUD(CRUDBase[Server]):
                 selectinload(Server.source_connections),
                 selectinload(Server.target_connections),
                 selectinload(Server.source_backups),
+                selectinload(Server.server_tags).selectinload(ServerTag.tag),
             )
         )
         result = await db.execute(stmt)

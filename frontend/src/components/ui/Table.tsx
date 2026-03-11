@@ -19,6 +19,9 @@ interface TableProps<T> {
   emptyMessage?: string;
   className?: string;
   rowClassName?: (item: T) => string | undefined;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
 export default function Table<T extends object>({
@@ -29,6 +32,9 @@ export default function Table<T extends object>({
   emptyMessage = 'No data available',
   className = '',
   rowClassName,
+  selectable,
+  selectedIds,
+  onSelectionChange,
 }: TableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -102,6 +108,25 @@ export default function Table<T extends object>({
         <table className="w-full border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              {selectable && (
+                <th className="w-10 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={data.length > 0 && data.every((item, idx) => selectedIds?.has(getKey(item, idx) as number))}
+                    onChange={(e) => {
+                      if (!onSelectionChange) return;
+                      const newSet = new Set(selectedIds);
+                      if (e.target.checked) {
+                        data.forEach((item, idx) => newSet.add(getKey(item, idx) as number));
+                      } else {
+                        data.forEach((item, idx) => newSet.delete(getKey(item, idx) as number));
+                      }
+                      onSelectionChange(newSet);
+                    }}
+                  />
+                </th>
+              )}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -147,6 +172,26 @@ export default function Table<T extends object>({
                 key={getKey(item, index)}
                 className={`border-b border-gray-100 transition-colors hover:bg-gray-50 ${rowClassName?.(item) ?? ''}`}
               >
+                {selectable && (
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={selectedIds?.has(getKey(item, index) as number) ?? false}
+                      onChange={(e) => {
+                        if (!onSelectionChange) return;
+                        const newSet = new Set(selectedIds);
+                        const id = getKey(item, index) as number;
+                        if (e.target.checked) {
+                          newSet.add(id);
+                        } else {
+                          newSet.delete(id);
+                        }
+                        onSelectionChange(newSet);
+                      }}
+                    />
+                  </td>
+                )}
                 {columns.map((col) => (
                   <td key={col.key} className="px-4 py-3 text-gray-700">
                     {col.render
@@ -159,7 +204,7 @@ export default function Table<T extends object>({
             {data.length === 0 && (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={columns.length + (selectable ? 1 : 0)}
                   className="px-4 py-8 text-center text-gray-500"
                 >
                   {emptyMessage}

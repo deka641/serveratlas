@@ -15,6 +15,7 @@ function NewApplicationContent() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const initialData: Partial<Application> = {};
   const serverIdParam = searchParams.get('server_id');
@@ -24,12 +25,15 @@ function NewApplicationContent() {
 
   const handleSubmit = async (data: Partial<Application>) => {
     setLoading(true);
+    setFormError(null);
     try {
       await api.createApplication(data);
       addToast('success', 'Application created successfully');
       router.push('/applications');
-    } catch {
-      addToast('error', 'Failed to create application');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create application';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setLoading(false);
     }
@@ -37,7 +41,7 @@ function NewApplicationContent() {
 
   return (
     <Card>
-      <ApplicationForm initialData={initialData} onSubmit={handleSubmit} loading={loading} />
+      <ApplicationForm initialData={initialData} onSubmit={handleSubmit} loading={loading} error={formError} />
     </Card>
   );
 }

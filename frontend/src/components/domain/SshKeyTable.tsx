@@ -11,9 +11,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 interface SshKeyTableProps {
   keys: SshKey[];
   onDelete: (id: number) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
-export default function SshKeyTable({ keys, onDelete }: SshKeyTableProps) {
+export default function SshKeyTable({ keys, onDelete, selectable, selectedIds, onSelectionChange }: SshKeyTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<SshKey | null>(null);
 
   const keyTypeColor = (type: string | null) => {
@@ -82,7 +85,7 @@ export default function SshKeyTable({ keys, onDelete }: SshKeyTableProps) {
 
   return (
     <>
-      <Table columns={columns} data={keys} />
+      <Table columns={columns} data={keys} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete SSH Key"

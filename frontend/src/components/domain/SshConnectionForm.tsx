@@ -15,9 +15,10 @@ interface SshConnectionFormProps {
   initialData?: Partial<SshConnection>;
   onSubmit: (data: Partial<SshConnection>) => void;
   loading: boolean;
+  error?: string | null;
 }
 
-export default function SshConnectionForm({ initialData, onSubmit, loading }: SshConnectionFormProps) {
+export default function SshConnectionForm({ initialData, onSubmit, loading, error }: SshConnectionFormProps) {
   const router = useRouter();
   const { data: servers, loading: serversLoading } = useServers();
   const { data: sshKeys, loading: keysLoading } = useSshKeys();
@@ -133,15 +134,22 @@ export default function SshConnectionForm({ initialData, onSubmit, loading }: Ss
         rows={3}
       />
 
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
         <Button
           type="submit"
-          disabled={loading || !sourceServerId || !targetServerId}
+          disabled={!sourceServerId || !targetServerId}
+          loading={loading}
         >
-          {loading ? 'Saving...' : initialData ? 'Update Connection' : 'Create Connection'}
+          {initialData ? 'Update Connection' : 'Create Connection'}
         </Button>
       </div>
     </form>

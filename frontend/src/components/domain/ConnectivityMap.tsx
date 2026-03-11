@@ -11,6 +11,7 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
 
 interface ConnectivityMapProps {
   graph: ConnectivityGraph;
+  searchTerm?: string;
 }
 
 const statusColorMap: Record<ServerStatus, string> = {
@@ -34,23 +35,33 @@ interface GraphLinkData {
   label: string;
 }
 
-export default function ConnectivityMap({ graph }: ConnectivityMapProps) {
+export default function ConnectivityMap({ graph, searchTerm }: ConnectivityMapProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
     function updateSize() {
-      if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
-        });
-      }
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (containerRef.current) {
+          setDimensions({
+            width: containerRef.current.clientWidth,
+            height: containerRef.current.clientHeight,
+          });
+        }
+      }, 150);
     }
-    updateSize();
+    // Initial size without debounce
+    if (containerRef.current) {
+      setDimensions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+      });
+    }
     window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    return () => { window.removeEventListener('resize', updateSize); clearTimeout(timer); };
   }, []);
 
   const nodes: GraphNodeData[] = graph.nodes.map((node) => ({
@@ -82,7 +93,15 @@ export default function ConnectivityMap({ graph }: ConnectivityMapProps) {
       const y = (node.y as number) ?? 0;
       const label = node.name as string;
       const color = node.color as string;
-      const radius = 8;
+
+      const isSearching = !!searchTerm && searchTerm.trim().length > 0;
+      const isMatch = isSearching && label.toLowerCase().includes(searchTerm.toLowerCase());
+      const radius = isMatch ? 12 : 8;
+
+      // Reduce alpha for non-matched nodes when searching
+      if (isSearching && !isMatch) {
+        ctx.globalAlpha = 0.3;
+      }
 
       // Draw circle
       ctx.beginPath();
@@ -93,6 +112,18 @@ export default function ConnectivityMap({ graph }: ConnectivityMapProps) {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
+      // Draw white glow effect for matched nodes
+      if (isMatch) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 3, 0, 2 * Math.PI, false);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
       // Draw label below node
       const fontSize = Math.max(12 / globalScale, 3);
       ctx.font = `${fontSize}px Inter, sans-serif`;
@@ -100,8 +131,13 @@ export default function ConnectivityMap({ graph }: ConnectivityMapProps) {
       ctx.textBaseline = 'top';
       ctx.fillStyle = '#1f2937';
       ctx.fillText(label, x, y + radius + 2);
+
+      // Restore alpha
+      if (isSearching && !isMatch) {
+        ctx.globalAlpha = 1;
+      }
     },
-    []
+    [searchTerm]
   );
 
   const nodePointerAreaPaint = useCallback(
@@ -129,6 +165,31 @@ export default function ConnectivityMap({ graph }: ConnectivityMapProps) {
     []
   );
 
+  const linkCanvasObject = useCallback(
+    (link: Record<string, unknown>, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      if (globalScale < 0.8) return;
+      const source = link.source as Record<string, unknown>;
+      const target = link.target as Record<string, unknown>;
+      if (!source || !target) return;
+      const sx = (source.x as number) ?? 0;
+      const sy = (source.y as number) ?? 0;
+      const tx = (target.x as number) ?? 0;
+      const ty = (target.y as number) ?? 0;
+      const mx = (sx + tx) / 2;
+      const my = (sy + ty) / 2;
+      const label = link.label as string;
+      if (!label) return;
+
+      const fontSize = Math.max(10 / globalScale, 2);
+      ctx.font = `${fontSize}px Inter, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(label, mx, my);
+    },
+    []
+  );
+
   return (
     <div ref={containerRef} className="h-full w-full" style={{ minHeight: 400 }}>
       <ForceGraph2D
@@ -141,7 +202,8 @@ export default function ConnectivityMap({ graph }: ConnectivityMapProps) {
         nodeRelSize={8}
         linkDirectionalArrowLength={6}
         linkDirectionalArrowRelPos={1}
-        linkLabel="label"
+        linkCanvasObjectMode={() => 'after'}
+        linkCanvasObject={linkCanvasObject}
         onNodeClick={handleNodeClick}
         linkColor={() => '#cbd5e1'}
         backgroundColor="transparent"

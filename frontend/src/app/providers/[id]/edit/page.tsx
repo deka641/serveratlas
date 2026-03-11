@@ -16,15 +16,19 @@ export default function EditProviderPage() {
   const id = Number(params.id);
   const { data: provider, loading: loadingProvider, error } = useProvider(id);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (data: { name: string; website: string; support_contact: string; notes: string }) => {
     setSaving(true);
+    setFormError(null);
     try {
       await api.updateProvider(id, data);
       addToast('success', 'Provider updated successfully.');
       router.push(`/providers/${id}`);
     } catch (err) {
-      addToast('error', err instanceof Error ? err.message : 'Failed to update provider.');
+      const msg = err instanceof Error ? err.message : 'Failed to update provider.';
+      setFormError(msg);
+      addToast('error', msg);
       setSaving(false);
     }
   };
@@ -42,6 +46,7 @@ export default function EditProviderPage() {
             initialData={provider}
             onSubmit={handleSubmit}
             loading={saving}
+            error={formError}
           />
         </Card>
       )}

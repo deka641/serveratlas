@@ -11,9 +11,12 @@ import type { Provider } from '@/lib/types';
 interface ProviderTableProps {
   providers: Provider[];
   onDelete: () => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
-export default function ProviderTable({ providers, onDelete }: ProviderTableProps) {
+export default function ProviderTable({ providers, onDelete, selectable, selectedIds, onSelectionChange }: ProviderTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<Provider | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -92,7 +95,7 @@ export default function ProviderTable({ providers, onDelete }: ProviderTableProp
 
   return (
     <>
-      <Table columns={columns} data={providers} />
+      <Table columns={columns} data={providers} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
       <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete Provider"

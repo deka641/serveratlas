@@ -17,15 +17,19 @@ export default function EditApplicationPage() {
   const { addToast } = useToast();
   const { data: app, loading: fetching, error } = useApplication(id);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (data: Partial<Application>) => {
     setSaving(true);
+    setFormError(null);
     try {
       await api.updateApplication(id, data);
       addToast('success', 'Application updated successfully');
       router.push(`/applications/${id}`);
-    } catch {
-      addToast('error', 'Failed to update application');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update application';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setSaving(false);
     }
@@ -35,7 +39,7 @@ export default function EditApplicationPage() {
     <PageContainer title="Edit Application" breadcrumbs={[{ label: 'Applications', href: '/applications' }, { label: app?.name ?? 'Application', href: `/applications/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {app && (
         <Card>
-          <ApplicationForm initialData={app} onSubmit={handleSubmit} loading={saving} />
+          <ApplicationForm initialData={app} onSubmit={handleSubmit} loading={saving} error={formError} />
         </Card>
       )}
     </PageContainer>

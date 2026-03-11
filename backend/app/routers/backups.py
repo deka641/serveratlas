@@ -1,12 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import backup_crud
+from app.crud.activity import activity_crud
+
+limiter = Limiter(key_func=get_remote_address)
 from app.database import get_db
 from app.schemas.backup import BackupCreate, BackupRead, BackupUpdate
 
 router = APIRouter(prefix="/backups", tags=["backups"])
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[int]
 
 
 def _backup_to_read(b) -> dict:
@@ -33,6 +43,13 @@ async def list_backups(
     return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
 
 
+@router.post("/bulk-delete", status_code=204)
+@limiter.limit("30/minute")
+async def bulk_delete_backups(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
+    for backup_id in body.ids[:100]:
+        await backup_crud.delete(db, backup_id)
+
+
 @router.get("/{id}", response_model=BackupRead)
 async def get_backup(id: int, db: AsyncSession = Depends(get_db)):
     backup = await backup_crud.get_detail(db, id)
@@ -42,23 +59,30 @@ async def get_backup(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=BackupRead, status_code=201)
-async def create_backup(data: BackupCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def create_backup(request: Request, data: BackupCreate, db: AsyncSession = Depends(get_db)):
     backup = await backup_crud.create(db, data.model_dump())
     detail = await backup_crud.get_detail(db, backup.id)
+    await activity_crud.log_activity(db, "backup", backup.id, data.name, "created")
     return BackupRead.model_validate(_backup_to_read(detail))
 
 
 @router.put("/{id}", response_model=BackupRead)
-async def update_backup(id: int, data: BackupUpdate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def update_backup(request: Request, id: int, data: BackupUpdate, db: AsyncSession = Depends(get_db)):
     updated = await backup_crud.update(db, id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(404, "Backup not found")
     detail = await backup_crud.get_detail(db, updated.id)
+    await activity_crud.log_activity(db, "backup", id, data.name or detail.name, "updated", data.model_dump(exclude_unset=True))
     return BackupRead.model_validate(_backup_to_read(detail))
 
 
 @router.delete("/{id}", status_code=204)
-async def delete_backup(id: int, db: AsyncSession = Depends(get_db)):
-    deleted = await backup_crud.delete(db, id)
-    if not deleted:
+@limiter.limit("30/minute")
+async def delete_backup(request: Request, id: int, db: AsyncSession = Depends(get_db)):
+    backup = await backup_crud.get(db, id)
+    if not backup:
         raise HTTPException(404, "Backup not found")
+    await backup_crud.delete(db, id)
+    await activity_crud.log_activity(db, "backup", id, backup.name, "deleted")

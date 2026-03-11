@@ -12,6 +12,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Table, { Column } from '@/components/ui/Table';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import DetailSkeleton from '@/components/ui/DetailSkeleton';
 import { useState } from 'react';
 
 export default function SshKeyDetailPage() {
@@ -66,7 +67,6 @@ export default function SshKeyDetailPage() {
     <PageContainer
       title={key?.name || 'SSH Key'}
       breadcrumbs={[{ label: 'SSH Keys', href: '/ssh-keys' }, { label: key?.name ?? 'SSH Key' }]}
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -80,7 +80,7 @@ export default function SshKeyDetailPage() {
         </div>
       }
     >
-      {key && (
+      {loading ? <DetailSkeleton cards={3} fieldsPerCard={3} /> : key && (
         <div className="space-y-6">
           <Card title="Key Details">
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import type { SshConnection, Backup, ServerSshKey, SshKey, Application } from '@/lib/types';
+import type { SshConnection, Backup, ServerSshKey, SshKey, Application, Tag, Activity } from '@/lib/types';
 import { api } from '@/lib/api';
 import { formatCost, formatDateTime, formatRAM, formatDisk } from '@/lib/formatters';
 import { useServer } from '@/hooks/useServers';
@@ -17,8 +17,10 @@ import Table, { Column } from '@/components/ui/Table';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Modal from '@/components/ui/Modal';
 import Select from '@/components/ui/Select';
+import Input from '@/components/ui/Input';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import CopyableText from '@/components/ui/CopyableText';
+import DetailSkeleton from '@/components/ui/DetailSkeleton';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
 
@@ -62,6 +64,17 @@ export default function ServerDetailPage() {
   const [addingKey, setAddingKey] = useState(false);
   const [removeKeyTarget, setRemoveKeyTarget] = useState<ServerSshKey | null>(null);
 
+  // Tag management state
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const [selectedTagId, setSelectedTagId] = useState('');
+  const [newTagName, setNewTagName] = useState('');
+  const [creatingTag, setCreatingTag] = useState(false);
+
+  // Activity history state
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
   const loadConnections = useCallback(async () => {
     setConnectionsLoading(true);
     try {
@@ -96,6 +109,84 @@ export default function ServerDetailPage() {
       loadAvailableKeys();
     }
   }, [showAddKeyModal, loadAvailableKeys]);
+
+  // Load all tags for the dropdown
+  const loadAllTags = useCallback(async () => {
+    setTagsLoading(true);
+    try {
+      const tags = await api.listTags();
+      setAllTags(tags);
+    } catch {
+      addToast('error', 'Failed to load tags');
+    } finally {
+      setTagsLoading(false);
+    }
+  }, [addToast]);
+
+  useEffect(() => {
+    if (server) {
+      loadAllTags();
+    }
+  }, [server?.id, loadAllTags]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load activity history
+  const loadActivities = useCallback(async () => {
+    setActivitiesLoading(true);
+    try {
+      const result = await api.listActivities({ entity_type: 'server', entity_id: id, limit: 20 });
+      setActivities(result.items);
+    } catch {
+      addToast('error', 'Failed to load activity history');
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, [id, addToast]);
+
+  useEffect(() => {
+    if (server) {
+      loadActivities();
+    }
+  }, [server?.id, loadActivities]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAddTag() {
+    if (!selectedTagId) return;
+    try {
+      await api.addTagToServer(id, Number(selectedTagId));
+      addToast('success', 'Tag added');
+      setSelectedTagId('');
+      refetch();
+      loadActivities();
+    } catch {
+      addToast('error', 'Failed to add tag');
+    }
+  }
+
+  async function handleRemoveTag(tagId: number) {
+    try {
+      await api.removeTagFromServer(id, tagId);
+      addToast('success', 'Tag removed');
+      refetch();
+      loadActivities();
+    } catch {
+      addToast('error', 'Failed to remove tag');
+    }
+  }
+
+  async function handleCreateTag() {
+    const trimmed = newTagName.trim();
+    if (!trimmed) return;
+    setCreatingTag(true);
+    try {
+      const tag = await api.createTag({ name: trimmed });
+      addToast('success', `Tag "${tag.name}" created`);
+      setNewTagName('');
+      setAllTags((prev) => [...prev, tag]);
+    } catch {
+      addToast('error', 'Failed to create tag');
+    } finally {
+      setCreatingTag(false);
+    }
+  }
 
   async function handleDelete() {
     try {
@@ -307,7 +398,6 @@ export default function ServerDetailPage() {
     <PageContainer
       title={server?.name ?? 'Server Details'}
       breadcrumbs={[{ label: 'Servers', href: '/servers' }, { label: server?.name ?? 'Server' }]}
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -323,7 +413,7 @@ export default function ServerDetailPage() {
         )
       }
     >
-      {server && (
+      {loading ? <DetailSkeleton cards={7} fieldsPerCard={3} /> : server && (
         <>
           {/* Tab navigation */}
           <div className="mb-6 border-b border-gray-200">
@@ -351,6 +441,7 @@ export default function ServerDetailPage() {
 
           {/* Overview Tab */}
           {activeTab === 'overview' && (
+            <>
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Card title="Basic Information">
                 <dl className="divide-y divide-gray-100">
@@ -444,6 +535,131 @@ export default function ServerDetailPage() {
                 </p>
               </Card>
             </div>
+
+            {/* Tags Section */}
+            <Card title="Tags" className="mt-6">
+              {/* Current tags */}
+              <div className="mb-4 flex flex-wrap gap-2">
+                {(server.tags ?? []).length === 0 && (
+                  <p className="text-sm text-gray-500">No tags yet.</p>
+                )}
+                {(server.tags ?? []).map((tag) => (
+                  <span
+                    key={tag.id}
+                    className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-white"
+                    style={{ backgroundColor: tag.color }}
+                  >
+                    {tag.name}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(tag.id)}
+                      className="ml-1 inline-flex items-center justify-center rounded-full p-0.5 hover:bg-white/20 focus:outline-none"
+                      aria-label={`Remove tag ${tag.name}`}
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+
+              {/* Add existing tag */}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Select
+                    label="Add existing tag"
+                    options={
+                      allTags
+                        .filter((t) => !(server.tags ?? []).some((st) => st.id === t.id))
+                        .map((t) => ({ value: String(t.id), label: t.name }))
+                    }
+                    value={selectedTagId}
+                    onChange={(e) => setSelectedTagId(e.target.value)}
+                    placeholder="Select a tag..."
+                    disabled={tagsLoading}
+                  />
+                </div>
+                <Button
+                  size="md"
+                  onClick={handleAddTag}
+                  disabled={!selectedTagId}
+                >
+                  Add
+                </Button>
+              </div>
+
+              {/* Create new tag */}
+              <div className="mt-4 flex items-end gap-2 border-t border-gray-100 pt-4">
+                <div className="flex-1">
+                  <Input
+                    label="Create new tag"
+                    placeholder="Tag name..."
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateTag();
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  size="md"
+                  variant="secondary"
+                  onClick={handleCreateTag}
+                  disabled={!newTagName.trim() || creatingTag}
+                >
+                  {creatingTag ? 'Creating...' : 'Create'}
+                </Button>
+              </div>
+            </Card>
+
+            {/* Activity History Section */}
+            <Card title="Activity History" className="mt-6">
+              {activitiesLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <LoadingSpinner />
+                </div>
+              ) : activities.length === 0 ? (
+                <p className="text-sm text-gray-500">No activity recorded yet.</p>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {activities.map((activity) => (
+                    <li key={activity.id} className="flex items-start gap-3 py-3">
+                      <span
+                        className={`mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          activity.action === 'created'
+                            ? 'bg-green-100 text-green-800'
+                            : activity.action === 'updated'
+                            ? 'bg-blue-100 text-blue-800'
+                            : activity.action === 'deleted'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {activity.action}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-gray-900">
+                          <span className="font-medium">{activity.entity_name}</span>
+                          {activity.changes && (
+                            <span className="ml-1 text-gray-500">
+                              &mdash; {activity.changes}
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {formatDateTime(activity.created_at)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+            </>
           )}
 
           {/* Applications Tab */}

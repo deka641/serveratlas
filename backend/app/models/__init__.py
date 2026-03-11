@@ -5,6 +5,8 @@ from app.models.server_ssh_key import ServerSshKey
 from app.models.ssh_connection import SshConnection
 from app.models.application import Application
 from app.models.backup import Backup
+from app.models.tag import Tag, ServerTag
+from app.models.activity import Activity
 
 __all__ = [
     "Provider",
@@ -14,4 +16,7 @@ __all__ = [
     "SshConnection",
     "Application",
     "Backup",
+    "Tag",
+    "ServerTag",
+    "Activity",
 ]

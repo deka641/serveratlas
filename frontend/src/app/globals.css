@@ -32,3 +32,25 @@
 .animate-attention-pulse {
   animation: attentionPulse 2s ease-in-out infinite;
 }
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes shrinkWidth {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@media print {
+  nav, header button, [data-no-print] { display: none !important; }
+  .shadow-sm, .shadow-md { box-shadow: none !important; }
+  .bg-gray-50, .bg-gray-100 { background: white !important; }
+  section { break-inside: avoid; }
+}

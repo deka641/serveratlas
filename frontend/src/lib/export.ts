@@ -1,6 +1,7 @@
 interface CsvColumn<T> {
   key: keyof T;
   label: string;
+  formatter?: (item: T) => string;
 }
 
 function escapeCsvValue(value: unknown): string {
@@ -15,7 +16,7 @@ function escapeCsvValue(value: unknown): string {
 export function exportToCsv<T>(data: T[], columns: CsvColumn<T>[], filename: string): void {
   const header = columns.map((c) => escapeCsvValue(c.label)).join(',');
   const rows = data.map((item) =>
-    columns.map((c) => escapeCsvValue(item[c.key])).join(',')
+    columns.map((c) => escapeCsvValue(c.formatter ? c.formatter(item) : item[c.key])).join(',')
   );
   const csv = [header, ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

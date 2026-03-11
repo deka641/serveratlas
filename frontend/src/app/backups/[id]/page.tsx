@@ -13,6 +13,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import DetailSkeleton from '@/components/ui/DetailSkeleton';
 
 export default function BackupDetailPage() {
   const params = useParams();
@@ -36,7 +37,6 @@ export default function BackupDetailPage() {
     <PageContainer
       title={backup?.name || 'Backup'}
       breadcrumbs={[{ label: 'Backups', href: '/backups' }, { label: backup?.name ?? 'Backup' }]}
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -50,7 +50,7 @@ export default function BackupDetailPage() {
         </div>
       }
     >
-      {backup && (
+      {loading ? <DetailSkeleton cards={3} fieldsPerCard={4} /> : backup && (
         <Card title="Backup Details">
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

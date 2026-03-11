@@ -10,9 +10,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 interface SshConnectionTableProps {
   connections: SshConnection[];
   onDelete: (id: number) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
-export default function SshConnectionTable({ connections, onDelete }: SshConnectionTableProps) {
+export default function SshConnectionTable({ connections, onDelete, selectable, selectedIds, onSelectionChange }: SshConnectionTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<SshConnection | null>(null);
 
   const columns: Column<SshConnection>[] = [
@@ -73,7 +76,7 @@ export default function SshConnectionTable({ connections, onDelete }: SshConnect
 
   return (
     <>
-      <Table columns={columns} data={connections} />
+      <Table columns={columns} data={connections} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete SSH Connection"

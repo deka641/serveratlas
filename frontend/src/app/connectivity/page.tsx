@@ -1,9 +1,13 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { useConnectionGraph } from '@/hooks/useSshConnections';
+import { useDebounce } from '@/hooks/useDebounce';
 import PageContainer from '@/components/PageContainer';
 import ConnectivityMap from '@/components/domain/ConnectivityMap';
 import EmptyState from '@/components/ui/EmptyState';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
 
 const legendItems = [
   { color: 'bg-green-500', label: 'Active' },
@@ -14,15 +18,43 @@ const legendItems = [
 
 export default function ConnectivityPage() {
   const { data: graph, loading, error, refetch } = useConnectionGraph();
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
+  function handleExportPng() {
+    const canvas = mapContainerRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const url = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = 'connectivity-map.png';
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   const hasData = graph && graph.nodes.length > 0;
 
   return (
     <PageContainer title="Connectivity Map" loading={loading} error={error} onRetry={refetch}>
       <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <Input
+              placeholder="Search nodes by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Button variant="secondary" onClick={handleExportPng}>
+            Export PNG
+          </Button>
+        </div>
+
         {hasData ? (
-          <div className="rounded-lg border border-gray-200 bg-white shadow-sm h-[50vh] min-h-[400px] md:h-[600px]">
-            <ConnectivityMap graph={graph} />
+          <div ref={mapContainerRef} className="rounded-lg border border-gray-200 bg-white shadow-sm h-[50vh] min-h-[400px] md:h-[600px]">
+            <ConnectivityMap graph={graph} searchTerm={debouncedSearchTerm} />
           </div>
         ) : (
           graph && (

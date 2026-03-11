@@ -2,6 +2,7 @@
 
 import type { CostSummary } from '@/lib/types';
 import Card from '@/components/ui/Card';
+import CostBarChart from '@/components/domain/CostBarChart';
 import { formatCost } from '@/lib/formatters';
 
 interface CostOverviewProps {
@@ -26,13 +27,13 @@ export default function CostOverview({ costSummary }: CostOverviewProps) {
                 </span>
               ))
             ) : (
-              <span className="text-3xl font-bold text-gray-900">
-                {formatCost(costSummary.total_monthly_cost)}
-              </span>
+              <span className="text-sm text-gray-500">No cost data available.</span>
             )}
           </div>
         </div>
       </Card>
+
+      <CostBarChart byProvider={costSummary.by_provider} totals={totals} />
 
       <Card title="Cost by Provider">
         {costSummary.by_provider.length === 0 ? (

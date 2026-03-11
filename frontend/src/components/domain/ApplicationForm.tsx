@@ -14,6 +14,7 @@ interface ApplicationFormProps {
   initialData?: Partial<Application>;
   onSubmit: (data: Partial<Application>) => void;
   loading: boolean;
+  error?: string | null;
 }
 
 const statusOptions = [
@@ -23,7 +24,7 @@ const statusOptions = [
   { value: 'deploying', label: 'Deploying' },
 ];
 
-export default function ApplicationForm({ initialData, onSubmit, loading }: ApplicationFormProps) {
+export default function ApplicationForm({ initialData, onSubmit, loading, error }: ApplicationFormProps) {
   const router = useRouter();
   const { data: servers, loading: serversLoading } = useServers();
 
@@ -127,12 +128,18 @@ export default function ApplicationForm({ initialData, onSubmit, loading }: Appl
         rows={3}
       />
 
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading || !name.trim() || !serverId}>
-          {loading ? 'Saving...' : initialData ? 'Update Application' : 'Create Application'}
+        <Button type="submit" disabled={!name.trim() || !serverId} loading={loading}>
+          {initialData ? 'Update Application' : 'Create Application'}
         </Button>
       </div>
     </form>

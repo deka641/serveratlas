@@ -18,9 +18,10 @@ interface ProviderFormProps {
   initialData?: Partial<Provider>;
   onSubmit: (data: ProviderFormData) => void;
   loading?: boolean;
+  error?: string | null;
 }
 
-export default function ProviderForm({ initialData, onSubmit, loading = false }: ProviderFormProps) {
+export default function ProviderForm({ initialData, onSubmit, loading = false, error }: ProviderFormProps) {
   const router = useRouter();
   const [name, setName] = useState(initialData?.name ?? '');
   const [website, setWebsite] = useState(initialData?.website ?? '');
@@ -81,12 +82,18 @@ export default function ProviderForm({ initialData, onSubmit, loading = false }:
         placeholder="Additional notes about this provider..."
         disabled={loading}
       />
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : initialData ? 'Update Provider' : 'Create Provider'}
+        <Button type="submit" loading={loading}>
+          {initialData ? 'Update Provider' : 'Create Provider'}
         </Button>
       </div>
     </form>

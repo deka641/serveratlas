@@ -16,6 +16,7 @@ import Badge from '@/components/ui/Badge';
 import Table, { Column } from '@/components/ui/Table';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Backup } from '@/lib/types';
+import DetailSkeleton from '@/components/ui/DetailSkeleton';
 
 export default function ApplicationDetailPage() {
   const params = useParams();
@@ -70,7 +71,6 @@ export default function ApplicationDetailPage() {
     <PageContainer
       title={app?.name || 'Application'}
       breadcrumbs={[{ label: 'Applications', href: '/applications' }, { label: app?.name ?? 'Application' }]}
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -84,7 +84,7 @@ export default function ApplicationDetailPage() {
         </div>
       }
     >
-      {app && (
+      {loading ? <DetailSkeleton cards={3} fieldsPerCard={4} /> : app && (
         <div className="space-y-6">
           <Card title="Application Details">
             <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">

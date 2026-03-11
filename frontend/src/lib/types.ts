@@ -1,4 +1,10 @@
 export type ServerStatus = 'active' | 'inactive' | 'maintenance' | 'decommissioned';
+
+export interface Tag {
+  id: number;
+  name: string;
+  color: string;
+}
 export type AppStatus = 'running' | 'stopped' | 'error' | 'deploying';
 export type BackupStatus = 'success' | 'failed' | 'running' | 'never_run';
 export type SshKeyType = 'rsa' | 'ed25519' | 'ecdsa' | 'dsa';
@@ -41,6 +47,7 @@ export interface Server {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  tags?: Tag[];
 }
 
 export interface ServerDetail extends Server {
@@ -187,4 +194,14 @@ export interface BackupCoverage {
   covered_applications: number;
   failed_backups_24h: number;
   uncovered_applications: string[];
+}
+
+export interface Activity {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  entity_name: string;
+  action: string;
+  changes: string | null;
+  created_at: string;
 }

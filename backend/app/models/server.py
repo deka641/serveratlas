@@ -58,3 +58,4 @@ class Server(Base):
         "Backup", foreign_keys="Backup.target_server_id",
         back_populates="target_server"
     )
+    server_tags = relationship("ServerTag", back_populates="server", cascade="all, delete-orphan")

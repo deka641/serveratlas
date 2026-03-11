@@ -15,6 +15,7 @@ interface BackupFormProps {
   initialData?: Partial<Backup>;
   onSubmit: (data: Partial<Backup>) => void;
   loading: boolean;
+  error?: string | null;
 }
 
 const frequencyOptions = [
@@ -32,7 +33,7 @@ const statusOptions = [
   { value: 'never_run', label: 'Never Run' },
 ];
 
-export default function BackupForm({ initialData, onSubmit, loading }: BackupFormProps) {
+export default function BackupForm({ initialData, onSubmit, loading, error }: BackupFormProps) {
   const router = useRouter();
   const { data: servers, loading: serversLoading } = useServers();
 
@@ -176,12 +177,18 @@ export default function BackupForm({ initialData, onSubmit, loading }: BackupFor
         rows={3}
       />
 
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading || !name.trim() || !sourceServerId}>
-          {loading ? 'Saving...' : initialData ? 'Update Backup' : 'Create Backup'}
+        <Button type="submit" disabled={!name.trim() || !sourceServerId} loading={loading}>
+          {initialData ? 'Update Backup' : 'Create Backup'}
         </Button>
       </div>
     </form>

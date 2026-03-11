@@ -13,9 +13,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 interface BackupTableProps {
   backups: Backup[];
   onDelete: (id: number) => void;
+  selectable?: boolean;
+  selectedIds?: Set<number>;
+  onSelectionChange?: (ids: Set<number>) => void;
 }
 
-export default function BackupTable({ backups, onDelete }: BackupTableProps) {
+export default function BackupTable({ backups, onDelete, selectable, selectedIds, onSelectionChange }: BackupTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<Backup | null>(null);
 
   const columns: Column<Backup>[] = [
@@ -101,7 +104,7 @@ export default function BackupTable({ backups, onDelete }: BackupTableProps) {
 
   return (
     <>
-      <Table columns={columns} data={backups} />
+      <Table columns={columns} data={backups} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Backup"

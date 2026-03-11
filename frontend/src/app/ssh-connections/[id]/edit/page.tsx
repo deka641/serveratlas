@@ -17,15 +17,19 @@ export default function EditSshConnectionPage() {
   const { addToast } = useToast();
   const { data: conn, loading: fetching, error } = useSshConnection(id);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (data: Partial<SshConnection>) => {
     setSaving(true);
+    setFormError(null);
     try {
       await api.updateSshConnection(id, data);
       addToast('success', 'SSH connection updated successfully');
       router.push(`/ssh-connections/${id}`);
-    } catch {
-      addToast('error', 'Failed to update SSH connection');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update SSH connection';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setSaving(false);
     }
@@ -35,7 +39,7 @@ export default function EditSshConnectionPage() {
     <PageContainer title="Edit SSH Connection" breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: 'SSH Connection', href: `/ssh-connections/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {conn && (
         <Card>
-          <SshConnectionForm initialData={conn} onSubmit={handleSubmit} loading={saving} />
+          <SshConnectionForm initialData={conn} onSubmit={handleSubmit} loading={saving} error={formError} />
         </Card>
       )}
     </PageContainer>

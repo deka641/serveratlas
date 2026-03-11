@@ -68,9 +68,9 @@ async function requestPaginated<T>(path: string, options?: RequestInit): Promise
 }
 
 import type {
-  Application, Backup, BackupCoverage, ConnectivityGraph, CostSummary,
+  Activity, Application, Backup, BackupCoverage, ConnectivityGraph, CostSummary,
   DashboardStats, Provider, ProviderWithServers, RecentBackup, Server,
-  ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers,
+  ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag,
 } from './types';
 
 export const api = {
@@ -91,10 +91,11 @@ export const api = {
   deleteProvider: (id: number) => request<void>(`/providers/${id}`, { method: 'DELETE' }),
 
   // Servers
-  listServers: (params?: { status?: string; provider_id?: number; search?: string; skip?: number; limit?: number }) => {
+  listServers: (params?: { status?: string; provider_id?: number; tag_id?: number; search?: string; skip?: number; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.provider_id) qs.set('provider_id', String(params.provider_id));
+    if (params?.tag_id) qs.set('tag_id', String(params.tag_id));
     if (params?.search) qs.set('search', params.search);
     if (params?.skip != null) qs.set('skip', String(params.skip));
     if (params?.limit != null) qs.set('limit', String(params.limit));
@@ -175,9 +176,35 @@ export const api = {
   updateBackup: (id: number, data: Partial<Backup>) => request<Backup>(`/backups/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteBackup: (id: number) => request<void>(`/backups/${id}`, { method: 'DELETE' }),
 
+  // Bulk operations
+  bulkDeleteServers: (ids: number[]) => request<void>('/servers/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  bulkDeleteApplications: (ids: number[]) => request<void>('/applications/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  bulkDeleteBackups: (ids: number[]) => request<void>('/backups/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  bulkDeleteProviders: (ids: number[]) => request<void>('/providers/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  bulkDeleteSshKeys: (ids: number[]) => request<void>('/ssh-keys/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  bulkDeleteSshConnections: (ids: number[]) => request<void>('/ssh-connections/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+
   // Dashboard
   getDashboardStats: () => request<DashboardStats>('/dashboard/stats'),
   getCostSummary: () => request<CostSummary>('/dashboard/cost-summary'),
   getRecentBackups: () => request<RecentBackup[]>('/dashboard/recent-backups'),
   getBackupCoverage: () => request<BackupCoverage>('/dashboard/backup-coverage'),
+
+  // Tags
+  listTags: () => request<Tag[]>('/tags'),
+  createTag: (data: { name: string; color?: string }) => request<Tag>('/tags', { method: 'POST', body: JSON.stringify(data) }),
+  deleteTag: (id: number) => request<void>(`/tags/${id}`, { method: 'DELETE' }),
+  addTagToServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'POST' }),
+  removeTagFromServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'DELETE' }),
+
+  // Activities
+  listActivities: (params?: { entity_type?: string; entity_id?: number; skip?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.entity_type) qs.set('entity_type', params.entity_type);
+    if (params?.entity_id) qs.set('entity_id', String(params.entity_id));
+    if (params?.skip != null) qs.set('skip', String(params.skip));
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return requestPaginated<Activity>(`/activities${q ? '?' + q : ''}`);
+  },
 };

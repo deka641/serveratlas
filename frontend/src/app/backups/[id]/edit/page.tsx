@@ -17,15 +17,19 @@ export default function EditBackupPage() {
   const { addToast } = useToast();
   const { data: backup, loading: fetching, error } = useBackup(id);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (data: Partial<Backup>) => {
     setSaving(true);
+    setFormError(null);
     try {
       await api.updateBackup(id, data);
       addToast('success', 'Backup updated successfully');
       router.push(`/backups/${id}`);
-    } catch {
-      addToast('error', 'Failed to update backup');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to update backup';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setSaving(false);
     }
@@ -35,7 +39,7 @@ export default function EditBackupPage() {
     <PageContainer title="Edit Backup" breadcrumbs={[{ label: 'Backups', href: '/backups' }, { label: backup?.name ?? 'Backup', href: `/backups/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {backup && (
         <Card>
-          <BackupForm initialData={backup} onSubmit={handleSubmit} loading={saving} />
+          <BackupForm initialData={backup} onSubmit={handleSubmit} loading={saving} error={formError} />
         </Card>
       )}
     </PageContainer>

@@ -6,6 +6,7 @@ import {
   useState,
   useCallback,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
 
@@ -31,6 +32,12 @@ const typeClasses: Record<ToastType, string> = {
   info: 'bg-blue-600',
 };
 
+const progressColors: Record<ToastType, string> = {
+  success: 'bg-green-300',
+  error: 'bg-red-300',
+  info: 'bg-blue-300',
+};
+
 const typeIcons: Record<ToastType, ReactNode> = {
   success: (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -49,28 +56,74 @@ const typeIcons: Record<ToastType, ReactNode> = {
   ),
 };
 
+const TOAST_DURATION = 3000;
+
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: number) => void }) {
-  useEffect(() => {
-    const timer = setTimeout(() => onRemove(toast.id), 3000);
-    return () => clearTimeout(timer);
+  const [leaving, setLeaving] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const remainingRef = useRef(TOAST_DURATION);
+  const startTimeRef = useRef(Date.now());
+
+  const startTimer = useCallback(() => {
+    startTimeRef.current = Date.now();
+    timerRef.current = setTimeout(() => {
+      setLeaving(true);
+      setTimeout(() => onRemove(toast.id), 300);
+    }, remainingRef.current);
   }, [toast.id, onRemove]);
+
+  useEffect(() => {
+    startTimer();
+    return () => clearTimeout(timerRef.current);
+  }, [startTimer]);
+
+  const handleMouseEnter = () => {
+    setPaused(true);
+    clearTimeout(timerRef.current);
+    remainingRef.current -= Date.now() - startTimeRef.current;
+  };
+
+  const handleMouseLeave = () => {
+    setPaused(false);
+    startTimer();
+  };
+
+  const handleDismiss = () => {
+    clearTimeout(timerRef.current);
+    setLeaving(true);
+    setTimeout(() => onRemove(toast.id), 300);
+  };
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm text-white shadow-lg transition-all ${typeClasses[toast.type]}`}
+      className={`relative overflow-hidden rounded-lg shadow-lg ${
+        leaving ? 'animate-[slideOutRight_300ms_ease-out_forwards]' : 'animate-[slideInRight_300ms_ease-out]'
+      }`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       role="alert"
     >
-      <span className="shrink-0">{typeIcons[toast.type]}</span>
-      <p className="flex-1">{toast.message}</p>
-      <button
-        onClick={() => onRemove(toast.id)}
-        className="shrink-0 rounded p-0.5 hover:bg-white/20 focus:outline-none"
-        aria-label="Dismiss"
-      >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+      <div className={`flex items-center gap-3 px-4 py-3 text-sm text-white ${typeClasses[toast.type]}`}>
+        <span className="shrink-0">{typeIcons[toast.type]}</span>
+        <p className="flex-1">{toast.message}</p>
+        <button
+          onClick={handleDismiss}
+          className="shrink-0 rounded p-0.5 hover:bg-white/20 focus:outline-none"
+          aria-label="Dismiss"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div
+        className={`h-0.5 ${progressColors[toast.type]}`}
+        style={{
+          animation: `shrinkWidth ${TOAST_DURATION}ms linear forwards`,
+          animationPlayState: paused ? 'paused' : 'running',
+        }}
+      />
     </div>
   );
 }

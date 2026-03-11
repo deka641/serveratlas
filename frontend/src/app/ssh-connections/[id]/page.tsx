@@ -11,6 +11,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import DetailSkeleton from '@/components/ui/DetailSkeleton';
 
 export default function SshConnectionDetailPage() {
   const params = useParams();
@@ -32,9 +33,8 @@ export default function SshConnectionDetailPage() {
 
   return (
     <PageContainer
-      title="SSH Connection"
-      breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: 'SSH Connection' }]}
-      loading={loading}
+      title={conn ? `${conn.source_server_name} → ${conn.target_server_name}` : 'SSH Connection'}
+      breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: conn ? `${conn.source_server_name} → ${conn.target_server_name}` : 'SSH Connection' }]}
       error={error}
       onRetry={refetch}
       action={
@@ -48,7 +48,7 @@ export default function SshConnectionDetailPage() {
         </div>
       }
     >
-      {conn && (
+      {loading ? <DetailSkeleton cards={2} fieldsPerCard={4} /> : conn && (
         <Card title="Connection Details">
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

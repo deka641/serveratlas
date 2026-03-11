@@ -1,6 +1,6 @@
 """Seed script to populate database with sample data."""
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,7 +118,7 @@ async def seed():
         await db.flush()
 
         # Backups
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         backups = [
             Backup(name="Web1 full backup", source_server_id=web1.id, target_server_id=backup_srv.id,
                    application_id=apps[0].id, frequency=BackupFrequency.daily, retention_days=30,

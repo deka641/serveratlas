@@ -15,6 +15,7 @@ function NewBackupContent() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const initialData: Partial<Backup> = {};
   const sourceServerIdParam = searchParams.get('source_server_id');
@@ -28,12 +29,15 @@ function NewBackupContent() {
 
   const handleSubmit = async (data: Partial<Backup>) => {
     setLoading(true);
+    setFormError(null);
     try {
       await api.createBackup(data);
       addToast('success', 'Backup created successfully');
       router.push('/backups');
-    } catch {
-      addToast('error', 'Failed to create backup');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create backup';
+      setFormError(msg);
+      addToast('error', msg);
     } finally {
       setLoading(false);
     }
@@ -41,7 +45,7 @@ function NewBackupContent() {
 
   return (
     <Card>
-      <BackupForm initialData={initialData} onSubmit={handleSubmit} loading={loading} />
+      <BackupForm initialData={initialData} onSubmit={handleSubmit} loading={loading} error={formError} />
     </Card>
   );
 }

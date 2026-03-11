@@ -12,15 +12,19 @@ export default function NewProviderPage() {
   const router = useRouter();
   const { addToast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async (data: { name: string; website: string; support_contact: string; notes: string }) => {
     setLoading(true);
+    setFormError(null);
     try {
       await api.createProvider(data);
       addToast('success', 'Provider created successfully.');
       router.push('/providers');
     } catch (err) {
-      addToast('error', err instanceof Error ? err.message : 'Failed to create provider.');
+      const msg = err instanceof Error ? err.message : 'Failed to create provider.';
+      setFormError(msg);
+      addToast('error', msg);
       setLoading(false);
     }
   };
@@ -28,7 +32,7 @@ export default function NewProviderPage() {
   return (
     <PageContainer title="New Provider" breadcrumbs={[{ label: 'Providers', href: '/providers' }, { label: 'New Provider' }]}>
       <Card className="max-w-2xl">
-        <ProviderForm onSubmit={handleSubmit} loading={loading} />
+        <ProviderForm onSubmit={handleSubmit} loading={loading} error={formError} />
       </Card>
     </PageContainer>
   );

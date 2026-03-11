@@ -12,6 +12,7 @@ interface SshKeyFormProps {
   initialData?: Partial<SshKey>;
   onSubmit: (data: Partial<SshKey>) => void;
   loading: boolean;
+  error?: string | null;
 }
 
 const keyTypeOptions = [
@@ -21,7 +22,7 @@ const keyTypeOptions = [
   { value: 'dsa', label: 'DSA' },
 ];
 
-export default function SshKeyForm({ initialData, onSubmit, loading }: SshKeyFormProps) {
+export default function SshKeyForm({ initialData, onSubmit, loading, error }: SshKeyFormProps) {
   const router = useRouter();
   const [name, setName] = useState(initialData?.name || '');
   const [keyType, setKeyType] = useState<SshKeyType | ''>(initialData?.key_type || '');
@@ -90,12 +91,18 @@ export default function SshKeyForm({ initialData, onSubmit, loading }: SshKeyFor
         rows={3}
       />
 
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading || !name.trim()}>
-          {loading ? 'Saving...' : initialData ? 'Update SSH Key' : 'Create SSH Key'}
+        <Button type="submit" disabled={!name.trim()} loading={loading}>
+          {initialData ? 'Update SSH Key' : 'Create SSH Key'}
         </Button>
       </div>
     </form>

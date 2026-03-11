@@ -5,6 +5,8 @@ from app.crud.ssh_connection import ssh_connection_crud
 from app.crud.application import application_crud
 from app.crud.backup import backup_crud
 from app.crud.dashboard import dashboard_crud
+from app.crud.tag import tag_crud
+from app.crud.activity import activity_crud
 
 __all__ = [
     "provider_crud",
@@ -14,4 +16,6 @@ __all__ = [
     "application_crud",
     "backup_crud",
     "dashboard_crud",
+    "tag_crud",
+    "activity_crud",
 ]

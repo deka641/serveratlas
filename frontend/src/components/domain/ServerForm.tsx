@@ -13,6 +13,7 @@ interface ServerFormProps {
   initialData?: Partial<Server>;
   onSubmit: (data: Partial<Server>) => void;
   loading?: boolean;
+  error?: string | null;
 }
 
 const statusOptions = [
@@ -28,7 +29,7 @@ const currencyOptions = [
   { value: 'GBP', label: 'GBP' },
 ];
 
-export default function ServerForm({ initialData, onSubmit, loading }: ServerFormProps) {
+export default function ServerForm({ initialData, onSubmit, loading, error }: ServerFormProps) {
   const router = useRouter();
   const { data: providers } = useProviders();
 
@@ -264,12 +265,18 @@ export default function ServerForm({ initialData, onSubmit, loading }: ServerFor
         />
       </fieldset>
 
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : initialData ? 'Update Server' : 'Create Server'}
+        <Button type="submit" loading={loading || false}>
+          {initialData ? 'Update Server' : 'Create Server'}
         </Button>
       </div>
     </form>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { Server } from '@/lib/types';
-import { formatCost } from '@/lib/formatters';
+import { formatCost, formatDateTime } from '@/lib/formatters';
 import Table, { Column } from '@/components/ui/Table';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Button from '@/components/ui/Button';
@@ -34,7 +34,18 @@ export default function ServerTable({ servers, onDelete, selectable, selectedIds
               server.last_check_status === 'unhealthy' ? 'bg-red-500' :
               'bg-gray-300'
             }`}
-            title={`Health: ${server.last_check_status ?? 'unknown'}${server.response_time_ms != null ? ` (${server.response_time_ms}ms)` : ''}`}
+            title={`${
+              server.last_check_status === 'healthy' ? 'Healthy' :
+              server.last_check_status === 'unhealthy' ? 'Unhealthy' :
+              'Unknown'
+            }${server.response_time_ms != null ? ` (${server.response_time_ms}ms)` : ''}${
+              server.last_checked_at ? ` \u2013 checked ${formatDateTime(server.last_checked_at)}` : ''
+            }`}
+            aria-label={
+              server.last_check_status === 'healthy' ? 'Healthy' :
+              server.last_check_status === 'unhealthy' ? 'Unhealthy' :
+              'Unknown'
+            }
           />
           <Link
             href={`/servers/${server.id}`}
@@ -73,6 +84,16 @@ export default function ServerTable({ servers, onDelete, selectable, selectedIds
           ))}
         </div>
       ),
+    },
+    {
+      key: 'last_check_status',
+      label: 'Health',
+      sortable: true,
+      render: (server) => {
+        const status = server.last_check_status ?? 'unknown';
+        const color = status === 'healthy' ? 'text-green-700' : status === 'unhealthy' ? 'text-red-700' : 'text-gray-500';
+        return <span className={`text-xs font-medium ${color}`}>{status === 'healthy' ? 'Healthy' : status === 'unhealthy' ? 'Unhealthy' : 'Unknown'}</span>;
+      },
     },
     {
       key: 'provider_name',

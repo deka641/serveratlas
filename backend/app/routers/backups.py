@@ -87,12 +87,21 @@ async def create_backup(request: Request, data: BackupCreate, db: AsyncSession =
 @router.put("/{id}", response_model=BackupRead)
 @limiter.limit("30/minute")
 async def update_backup(request: Request, id: int, data: BackupUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await backup_crud.update(db, id, data.model_dump(exclude_unset=True))
-    if not updated:
+    old = await backup_crud.get(db, id)
+    if not old:
         raise HTTPException(404, "Backup not found")
+    update_fields = data.model_dump(exclude_unset=True)
+    changes = {}
+    for key, new_val in update_fields.items():
+        old_val = getattr(old, key, None)
+        if hasattr(old_val, 'value'):
+            old_val = old_val.value
+        if str(old_val) != str(new_val):
+            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    updated = await backup_crud.update(db, id, update_fields)
     detail = await backup_crud.get_detail(db, updated.id)
     try:
-        await activity_crud.log_activity(db, "backup", id, data.name or detail.name, "updated", data.model_dump(exclude_unset=True))
+        await activity_crud.log_activity(db, "backup", id, data.name or detail.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for backup update %s", id, exc_info=True)
     return BackupRead.model_validate(_backup_to_read(detail))

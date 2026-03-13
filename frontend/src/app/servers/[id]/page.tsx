@@ -22,6 +22,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import CopyableText from '@/components/ui/CopyableText';
 import DetailSkeleton from '@/components/ui/DetailSkeleton';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
+import ChangesSummary from '@/components/domain/ChangesSummary';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
 
@@ -71,6 +72,9 @@ export default function ServerDetailPage() {
   const [selectedTagId, setSelectedTagId] = useState('');
   const [newTagName, setNewTagName] = useState('');
   const [creatingTag, setCreatingTag] = useState(false);
+
+  // Health check state
+  const [healthCheckRunning, setHealthCheckRunning] = useState(false);
 
   // Activity history state
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -186,6 +190,19 @@ export default function ServerDetailPage() {
       addToast('error', 'Failed to create tag');
     } finally {
       setCreatingTag(false);
+    }
+  }
+
+  async function handleRunHealthCheck() {
+    setHealthCheckRunning(true);
+    try {
+      await api.runHealthCheck(id);
+      addToast('success', 'Health check completed');
+      refetch();
+    } catch (e) {
+      addToast('error', e instanceof Error ? e.message : 'Health check failed');
+    } finally {
+      setHealthCheckRunning(false);
     }
   }
 
@@ -535,20 +552,59 @@ export default function ServerDetailPage() {
                             server.last_check_status === 'unhealthy' ? 'bg-red-500' :
                             'bg-gray-300'
                           }`}
+                          title={
+                            server.last_check_status === 'healthy' ? 'Healthy' :
+                            server.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                            'Unknown'
+                          }
+                          aria-label={
+                            server.last_check_status === 'healthy' ? 'Healthy' :
+                            server.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                            'Unknown'
+                          }
                         />
-                        {server.last_check_status ?? 'unknown'}
+                        <span className={
+                          server.last_check_status === 'healthy' ? 'text-green-700' :
+                          server.last_check_status === 'unhealthy' ? 'text-red-700' :
+                          'text-gray-500'
+                        }>
+                          {server.last_check_status === 'healthy' ? 'Healthy' :
+                           server.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                           'Unknown'}
+                        </span>
                       </span>
                     }
                   />
                   <DetailRow label="Last Checked" value={server.last_checked_at ? formatDateTime(server.last_checked_at) : 'Never'} />
                   <DetailRow label="Response Time" value={server.response_time_ms != null ? `${server.response_time_ms} ms` : null} />
                 </dl>
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleRunHealthCheck}
+                    disabled={healthCheckRunning || (!server.ip_v4 && !server.hostname)}
+                  >
+                    {healthCheckRunning ? 'Checking...' : 'Run Health Check'}
+                  </Button>
+                </div>
               </Card>
 
               <Card title="Access">
                 <dl className="divide-y divide-gray-100">
                   <DetailRow label="Login User" value={server.login_user} />
                   <DetailRow label="Login Notes" value={server.login_notes} />
+                  {(server.ip_v4 || server.hostname) && (
+                    <DetailRow
+                      label="SSH Command"
+                      value={
+                        <CopyableText
+                          text={`ssh ${server.login_user || 'root'}@${server.ip_v4 || server.hostname}`}
+                          className="font-mono text-sm"
+                        />
+                      }
+                    />
+                  )}
                 </dl>
               </Card>
 
@@ -560,6 +616,48 @@ export default function ServerDetailPage() {
                 )}
               </Card>
             </div>
+
+            {/* Backup Coverage Card */}
+            {server.applications.length > 0 && (
+              <Card title="Backup Coverage" className="mt-6">
+                {(() => {
+                  const backupList = backups ?? [];
+                  const coveredAppIds = new Set(backupList.filter(b => b.application_id).map(b => b.application_id));
+                  const uncoveredApps = server.applications.filter(app => !coveredAppIds.has(app.id));
+                  const coveredCount = server.applications.length - uncoveredApps.length;
+                  return (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        <span className="font-medium">{coveredCount}</span> of{' '}
+                        <span className="font-medium">{server.applications.length}</span>{' '}
+                        application{server.applications.length !== 1 ? 's' : ''} covered by backups.
+                      </p>
+                      {uncoveredApps.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-amber-700">Uncovered applications:</p>
+                          <ul className="mt-1 space-y-1">
+                            {uncoveredApps.map((app) => (
+                              <li key={app.id} className="flex items-center justify-between text-sm">
+                                <span className="text-gray-700">{app.name}</span>
+                                <Link
+                                  href={`/backups/new?application_id=${app.id}&source_server_id=${id}`}
+                                  className="text-xs text-blue-600 hover:underline"
+                                >
+                                  Create Backup
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {uncoveredApps.length === 0 && (
+                        <p className="mt-1 text-sm text-green-700">All applications are covered by backups.</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </Card>
+            )}
 
             {/* Tags Section */}
             <Card title="Tags" className="mt-6">
@@ -669,12 +767,12 @@ export default function ServerDetailPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-gray-900">
                           <span className="font-medium">{activity.entity_name}</span>
-                          {activity.changes && (
-                            <span className="ml-1 text-gray-500">
-                              &mdash; {activity.changes}
-                            </span>
-                          )}
                         </p>
+                        {activity.changes && (
+                          <div className="mt-0.5">
+                            <ChangesSummary changes={activity.changes} />
+                          </div>
+                        )}
                         <p className="mt-0.5 text-xs text-gray-500">
                           {formatDateTime(activity.created_at)}
                         </p>

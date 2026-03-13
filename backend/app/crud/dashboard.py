@@ -74,8 +74,10 @@ class DashboardCRUD:
             CurrencyTotal(currency=cur, amount=amt) for cur, amt in sorted(totals_map.items())
         ]
 
+        total_monthly_cost = sum(totals_map.values(), Decimal("0.00"))
+
         return CostSummary(
-            total_monthly_cost=Decimal("0.00"),
+            total_monthly_cost=total_monthly_cost,
             by_provider=by_provider,
             totals_by_currency=totals_by_currency,
         )

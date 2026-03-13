@@ -64,6 +64,13 @@
   table { font-size: 10pt; }
   body { font-size: 11pt; }
 
+  /* Preserve colors for health dots and badges in print */
+  .print-color-exact { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .bg-green-500, .bg-red-500, .bg-gray-300, .bg-amber-500 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .bg-green-50, .bg-red-50, .bg-amber-50 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .text-green-800, .text-red-800, .text-amber-800 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .border-green-200, .border-red-200, .border-amber-200 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+
   /* Hide sidebar and make main content full-width */
   aside, .md\:flex-shrink-0 { display: none !important; }
   .flex.min-h-screen > div { width: 100% !important; }

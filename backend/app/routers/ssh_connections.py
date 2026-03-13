@@ -84,13 +84,20 @@ async def create_ssh_connection(request: Request, data: SshConnectionCreate, db:
 @router.put("/{id}", response_model=SshConnectionRead)
 @limiter.limit("30/minute")
 async def update_ssh_connection(request: Request, id: int, data: SshConnectionUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await ssh_connection_crud.update(db, id, data.model_dump(exclude_unset=True))
-    if not updated:
+    old = await ssh_connection_crud.get(db, id)
+    if not old:
         raise HTTPException(404, "SSH Connection not found")
+    update_fields = data.model_dump(exclude_unset=True)
+    changes = {}
+    for key, new_val in update_fields.items():
+        old_val = getattr(old, key, None)
+        if str(old_val) != str(new_val):
+            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    updated = await ssh_connection_crud.update(db, id, update_fields)
     conn_detail = await ssh_connection_crud.get_detail(db, updated.id)
     conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{id}"
     try:
-        await activity_crud.log_activity(db, "ssh_connection", id, conn_name, "updated", data.model_dump(exclude_unset=True))
+        await activity_crud.log_activity(db, "ssh_connection", id, conn_name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for ssh_connection update %s", id, exc_info=True)
     return SshConnectionRead.model_validate(_conn_to_read(conn_detail))

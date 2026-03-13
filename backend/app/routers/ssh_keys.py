@@ -64,11 +64,18 @@ async def create_ssh_key(request: Request, data: SshKeyCreate, db: AsyncSession 
 @router.put("/{id}", response_model=SshKeyRead)
 @limiter.limit("30/minute")
 async def update_ssh_key(request: Request, id: int, data: SshKeyUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await ssh_key_crud.update(db, id, data.model_dump(exclude_unset=True))
-    if not updated:
+    old = await ssh_key_crud.get(db, id)
+    if not old:
         raise HTTPException(404, "SSH Key not found")
+    update_fields = data.model_dump(exclude_unset=True)
+    changes = {}
+    for key, new_val in update_fields.items():
+        old_val = getattr(old, key, None)
+        if str(old_val) != str(new_val):
+            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    updated = await ssh_key_crud.update(db, id, update_fields)
     try:
-        await activity_crud.log_activity(db, "ssh_key", id, data.name or updated.name, "updated", data.model_dump(exclude_unset=True))
+        await activity_crud.log_activity(db, "ssh_key", id, data.name or updated.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for ssh_key update %s", id, exc_info=True)
     return updated

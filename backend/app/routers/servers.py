@@ -99,12 +99,21 @@ async def create_server(request: Request, data: ServerCreate, db: AsyncSession =
 @router.put("/{id}", response_model=ServerRead)
 @limiter.limit("30/minute")
 async def update_server(request: Request, id: int, data: ServerUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await server_crud.update(db, id, data.model_dump(exclude_unset=True))
-    if not updated:
+    old = await server_crud.get(db, id)
+    if not old:
         raise HTTPException(404, "Server not found")
+    update_fields = data.model_dump(exclude_unset=True)
+    changes = {}
+    for key, new_val in update_fields.items():
+        old_val = getattr(old, key, None)
+        if hasattr(old_val, 'value'):
+            old_val = old_val.value
+        if str(old_val) != str(new_val):
+            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    updated = await server_crud.update(db, id, update_fields)
     server = await server_crud.get_with_provider(db, updated.id)
     try:
-        await activity_crud.log_activity(db, "server", id, data.name or server.name, "updated", data.model_dump(exclude_unset=True))
+        await activity_crud.log_activity(db, "server", id, data.name or server.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for server update %s", id, exc_info=True)
     return _server_to_read(server)
@@ -195,6 +204,49 @@ async def update_health_check(request: Request, id: int, data: HealthCheckUpdate
         "last_checked_at": datetime.utcnow(),
         "last_check_status": data.status,
         "response_time_ms": data.response_time_ms,
+    }
+    await server_crud.update(db, id, update_data)
+    server = await server_crud.get_with_provider(db, id)
+    return _server_to_read(server)
+
+
+@router.post("/{id}/run-health-check", response_model=ServerRead)
+@limiter.limit("30/minute")
+async def run_health_check(request: Request, id: int, db: AsyncSession = Depends(get_db)):
+    import asyncio
+    import socket
+    import time
+    from datetime import datetime
+
+    server = await server_crud.get(db, id)
+    if not server:
+        raise HTTPException(404, "Server not found")
+
+    host = server.ip_v4 or server.hostname
+    if not host:
+        raise HTTPException(400, "Server has no IP address or hostname configured")
+
+    port = 22
+    status = "unhealthy"
+    response_time_ms = None
+
+    try:
+        start = time.monotonic()
+        loop = asyncio.get_event_loop()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        await loop.run_in_executor(None, sock.connect, (host, port))
+        elapsed = time.monotonic() - start
+        response_time_ms = int(elapsed * 1000)
+        status = "healthy"
+        sock.close()
+    except (OSError, socket.timeout, ConnectionRefusedError):
+        status = "unhealthy"
+
+    update_data = {
+        "last_checked_at": datetime.utcnow(),
+        "last_check_status": status,
+        "response_time_ms": response_time_ms,
     }
     await server_crud.update(db, id, update_data)
     server = await server_crud.get_with_provider(db, id)

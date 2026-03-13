@@ -16,6 +16,7 @@ import Input from '@/components/ui/Input';
 import EmptyState from '@/components/ui/EmptyState';
 import Pagination from '@/components/ui/Pagination';
 import Table, { Column } from '@/components/ui/Table';
+import ChangesSummary from '@/components/domain/ChangesSummary';
 
 const PAGE_SIZE = 50;
 
@@ -183,11 +184,7 @@ function ActivitiesPageContent() {
     {
       key: 'changes',
       label: 'Changes',
-      render: (activity) => (
-        <span className="text-gray-500 text-xs" title={activity.changes || undefined}>
-          {truncateChanges(activity.changes)}
-        </span>
-      ),
+      render: (activity) => <ChangesSummary changes={activity.changes} />,
     },
   ];
 

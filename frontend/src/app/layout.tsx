@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import CommandPalette from '@/components/CommandPalette';
 import { ToastProvider } from '@/components/ui/Toast';
 import { MobileSidebarContext } from '@/components/MobileSidebarContext';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -36,7 +37,9 @@ export default function RootLayout({
                 mobileOpen={mobileOpen}
                 onMobileClose={() => setMobileOpen(false)}
               />
-              <div className="flex flex-1 flex-col min-w-0">{children}</div>
+              <div className="flex flex-1 flex-col min-w-0">
+                <ErrorBoundary>{children}</ErrorBoundary>
+              </div>
               <CommandPalette />
             </div>
           </MobileSidebarContext.Provider>

@@ -2,10 +2,40 @@
 
 import { useData } from '@/hooks/useData';
 import { api } from '@/lib/api';
-import { formatCost, formatRAM, formatDisk } from '@/lib/formatters';
+import { formatCost, formatRAM, formatDisk, formatDateTime } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
-import type { Application, SshConnection, Tag, Server } from '@/lib/types';
+import type { Application, SshConnection, Tag, Server, Backup, OverdueBackup } from '@/lib/types';
+
+function ReportSkeleton() {
+  return (
+    <div className="mx-auto max-w-4xl p-8 animate-pulse">
+      <div className="mb-8 border-b border-gray-200 pb-4">
+        <div className="h-8 w-48 bg-gray-200 rounded mb-2" />
+        <div className="h-5 w-36 bg-gray-200 rounded mb-1" />
+        <div className="h-4 w-56 bg-gray-100 rounded" />
+      </div>
+      <div className="mb-8">
+        <div className="h-6 w-32 bg-gray-200 rounded mb-3" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded border p-3">
+              <div className="h-8 w-12 bg-gray-200 rounded mb-1" />
+              <div className="h-4 w-20 bg-gray-100 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mb-8">
+        <div className="h-6 w-40 bg-gray-200 rounded mb-3" />
+        <div className="h-32 bg-gray-100 rounded" />
+      </div>
+      <div className="mb-8">
+        <div className="h-6 w-36 bg-gray-200 rounded mb-3" />
+        <div className="h-48 bg-gray-100 rounded" />
+      </div>
+    </div>
+  );
+}
 
 export default function ReportPage() {
   const { data: stats } = useData(() => api.getDashboardStats());
@@ -15,10 +45,13 @@ export default function ReportPage() {
   const { data: applicationsResult } = useData(() => api.listApplications({ limit: 500 }));
   const { data: connectionsResult } = useData(() => api.listSshConnections({ limit: 500 }));
   const { data: tags } = useData(() => api.listTags());
+  const { data: backupsResult } = useData(() => api.listBackups({ limit: 500 }));
+  const { data: overdueBackups } = useData(() => api.getOverdueBackups());
 
   const servers = serversResult?.items ?? [];
   const applications = applicationsResult?.items ?? [];
   const connections = connectionsResult?.items ?? [];
+  const backups = backupsResult?.items ?? [];
 
   // Compute unique servers involved in SSH connections
   const uniqueConnectionServers = new Set<number>();
@@ -52,7 +85,27 @@ export default function ReportPage() {
     second: '2-digit',
   });
 
-  if (!stats || !costSummary) return <div className="p-8"><LoadingSpinner /></div>;
+  if (!stats || !costSummary) return <ReportSkeleton />;
+
+  // Executive Summary findings
+  const findings: { text: string; critical: boolean }[] = [];
+  const unhealthyCount = stats.unhealthy_servers;
+  if (unhealthyCount > 0) {
+    findings.push({ text: `${unhealthyCount} of ${stats.total_servers} server${unhealthyCount !== 1 ? 's are' : ' is'} unhealthy`, critical: true });
+  }
+  if (backupCoverage && backupCoverage.failed_backups_24h > 0) {
+    findings.push({ text: `${backupCoverage.failed_backups_24h} backup${backupCoverage.failed_backups_24h !== 1 ? 's' : ''} failed in the last 24h`, critical: true });
+  }
+  if (backupCoverage && backupCoverage.uncovered_applications.length > 0) {
+    findings.push({ text: `${backupCoverage.uncovered_applications.length} application${backupCoverage.uncovered_applications.length !== 1 ? 's have' : ' has'} no backup coverage`, critical: true });
+  }
+  if (overdueBackups && overdueBackups.length > 0) {
+    findings.push({ text: `${overdueBackups.length} backup${overdueBackups.length !== 1 ? 's are' : ' is'} overdue`, critical: true });
+  }
+  if (stats.failing_backups > 0) {
+    findings.push({ text: `${stats.failing_backups} backup${stats.failing_backups !== 1 ? 's' : ''} in failed state`, critical: true });
+  }
+  const allClear = findings.length === 0;
 
   return (
     <div className="mx-auto max-w-4xl p-8 print:p-0 print:text-xs">
@@ -71,6 +124,32 @@ export default function ReportPage() {
         <p className="text-lg text-gray-600">Infrastructure Report</p>
         <p className="mt-1 text-sm text-gray-500">Generated on {dateWithDay}</p>
       </div>
+
+      {/* Executive Summary (#17) */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Executive Summary</h2>
+        {allClear ? (
+          <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 print-color-exact" />
+            <span className="text-sm font-medium text-green-800">All systems operational. No critical findings.</span>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {findings.map((finding, i) => (
+              <li key={i} className={`flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium ${
+                finding.critical
+                  ? 'border-red-200 bg-red-50 text-red-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+              }`}>
+                <span className={`inline-block h-2 w-2 rounded-full print-color-exact ${
+                  finding.critical ? 'bg-red-500' : 'bg-amber-500'
+                }`} />
+                {finding.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Summary */}
       <section className="mb-8">
@@ -140,7 +219,7 @@ export default function ReportPage() {
         )}
       </section>
 
-      {/* Server Inventory */}
+      {/* Server Inventory (#14 + #16) */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Server Inventory</h2>
         <table className="w-full text-sm print:text-xs border-collapse">
@@ -148,7 +227,11 @@ export default function ReportPage() {
             <tr className="border-b">
               <th className="py-2 text-left font-medium">Name</th>
               <th className="py-2 text-left font-medium">Status</th>
+              <th className="py-2 text-left font-medium">Health</th>
               <th className="py-2 text-left font-medium">Provider</th>
+              <th className="py-2 text-left font-medium">IPv4</th>
+              <th className="py-2 text-left font-medium">Hostname</th>
+              <th className="py-2 text-left font-medium">Location</th>
               <th className="py-2 text-left font-medium">OS</th>
               <th className="py-2 text-right font-medium">CPU</th>
               <th className="py-2 text-right font-medium">RAM</th>
@@ -161,7 +244,26 @@ export default function ReportPage() {
               <tr key={s.id} className="border-b">
                 <td className="py-2">{s.name}</td>
                 <td className="py-2"><StatusBadge status={s.status} /></td>
+                <td className="py-2">
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full print-color-exact ${
+                        s.last_check_status === 'healthy' ? 'bg-green-500' :
+                        s.last_check_status === 'unhealthy' ? 'bg-red-500' :
+                        'bg-gray-300'
+                      }`}
+                    />
+                    <span className="text-xs">
+                      {s.last_check_status === 'healthy' ? 'Healthy' :
+                       s.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                       'Unknown'}
+                    </span>
+                  </span>
+                </td>
                 <td className="py-2">{s.provider_name || '\u2014'}</td>
+                <td className="py-2 font-mono text-xs">{s.ip_v4 || '\u2014'}</td>
+                <td className="py-2 text-xs">{s.hostname || '\u2014'}</td>
+                <td className="py-2">{s.location || '\u2014'}</td>
                 <td className="py-2">{s.os || '\u2014'}</td>
                 <td className="py-2 text-right">{s.cpu_cores ?? '\u2014'}</td>
                 <td className="py-2 text-right">{formatRAM(s.ram_mb)}</td>
@@ -259,7 +361,7 @@ export default function ReportPage() {
                 }}
               >
                 <span
-                  className="inline-block h-2 w-2 rounded-full"
+                  className="inline-block h-2 w-2 rounded-full print-color-exact"
                   style={{ backgroundColor: tag.color }}
                 />
                 {tag.name}
@@ -296,6 +398,39 @@ export default function ReportPage() {
               </ul>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Backup Schedule (#15) */}
+      {backups.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Schedule</h2>
+          <table className="w-full text-sm print:text-xs border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Name</th>
+                <th className="py-2 text-left font-medium">Source Server</th>
+                <th className="py-2 text-left font-medium">Application</th>
+                <th className="py-2 text-left font-medium">Frequency</th>
+                <th className="py-2 text-right font-medium">Retention</th>
+                <th className="py-2 text-left font-medium">Last Run</th>
+                <th className="py-2 text-left font-medium">Last Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backups.map((b) => (
+                <tr key={b.id} className="border-b">
+                  <td className="py-2">{b.name}</td>
+                  <td className="py-2">{b.source_server_name || '\u2014'}</td>
+                  <td className="py-2">{b.application_name || '\u2014'}</td>
+                  <td className="py-2 capitalize">{b.frequency}</td>
+                  <td className="py-2 text-right">{b.retention_days != null ? `${b.retention_days}d` : '\u2014'}</td>
+                  <td className="py-2">{b.last_run_at ? formatDateTime(b.last_run_at) : 'Never'}</td>
+                  <td className="py-2"><StatusBadge status={b.last_run_status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
 

@@ -216,4 +216,6 @@ export const api = {
   // Server health check
   updateServerHealthCheck: (id: number, data: { status: string; response_time_ms?: number }) =>
     request<Server>(`/servers/${id}/health-check`, { method: 'POST', body: JSON.stringify(data) }),
+  runHealthCheck: (id: number) =>
+    request<Server>(`/servers/${id}/run-health-check`, { method: 'POST' }),
 };

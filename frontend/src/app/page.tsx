@@ -26,33 +26,49 @@ export default function DashboardPage() {
     data: costSummary,
     loading: costLoading,
     error: costError,
+    refetch: refetchCost,
   } = useData(() => api.getCostSummary());
 
   const {
     data: serversResult,
     loading: serversLoading,
     error: serversError,
+    refetch: refetchServers,
   } = useData(() => api.listServers());
 
   const {
     data: recentBackups,
     loading: backupsLoading,
+    refetch: refetchBackups,
   } = useData(() => api.getRecentBackups());
 
   const {
     data: backupCoverage,
     loading: coverageLoading,
+    refetch: refetchCoverage,
   } = useData(() => api.getBackupCoverage());
 
   const {
     data: overdueBackups,
     loading: overdueLoading,
+    refetch: refetchOverdue,
   } = useData(() => api.getOverdueBackups());
 
   const {
     data: activitiesResult,
     loading: activitiesLoading,
+    refetch: refetchActivities,
   } = useData(() => api.listActivities({ limit: 10 }));
+
+  function handleRefreshAll() {
+    refetchStats();
+    refetchCost();
+    refetchServers();
+    refetchBackups();
+    refetchCoverage();
+    refetchOverdue();
+    refetchActivities();
+  }
 
   const activities = activitiesResult?.items ?? null;
 
@@ -67,9 +83,14 @@ export default function DashboardPage() {
       error={error}
       onRetry={refetchStats}
       action={
-        <Link href="/report">
-          <Button variant="secondary">Print Report</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handleRefreshAll}>
+            Refresh
+          </Button>
+          <Link href="/report">
+            <Button variant="secondary">Print Report</Button>
+          </Link>
+        </div>
       }
     >
       <div className="space-y-8">
@@ -258,12 +279,18 @@ export default function DashboardPage() {
                     </span>
                     <ActivityActionBadge action={activity.action} />
                     <span className="text-gray-600">{activity.entity_type}</span>
-                    <Link
-                      href={activityEntityUrl(activity)}
-                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
-                    >
-                      {activity.entity_name}
-                    </Link>
+                    {activity.action === 'deleted' ? (
+                      <span className="font-medium text-gray-500 truncate">
+                        {activity.entity_name}
+                      </span>
+                    ) : (
+                      <Link
+                        href={activityEntityUrl(activity)}
+                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
+                      >
+                        {activity.entity_name}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

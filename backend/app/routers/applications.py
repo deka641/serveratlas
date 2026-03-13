@@ -75,12 +75,21 @@ async def create_application(request: Request, data: ApplicationCreate, db: Asyn
 @router.put("/{id}", response_model=ApplicationRead)
 @limiter.limit("30/minute")
 async def update_application(request: Request, id: int, data: ApplicationUpdate, db: AsyncSession = Depends(get_db)):
-    updated = await application_crud.update(db, id, data.model_dump(exclude_unset=True))
-    if not updated:
+    old = await application_crud.get(db, id)
+    if not old:
         raise HTTPException(404, "Application not found")
+    update_fields = data.model_dump(exclude_unset=True)
+    changes = {}
+    for key, new_val in update_fields.items():
+        old_val = getattr(old, key, None)
+        if hasattr(old_val, 'value'):
+            old_val = old_val.value
+        if str(old_val) != str(new_val):
+            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    updated = await application_crud.update(db, id, update_fields)
     app = await application_crud.get_detail(db, updated.id)
     try:
-        await activity_crud.log_activity(db, "application", id, data.name or app.name, "updated", data.model_dump(exclude_unset=True))
+        await activity_crud.log_activity(db, "application", id, data.name or app.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for application update %s", id, exc_info=True)
     return ApplicationRead.model_validate({

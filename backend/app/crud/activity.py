@@ -20,7 +20,7 @@ class ActivityCRUD:
             entity_id=entity_id,
             entity_name=entity_name,
             action=action,
-            changes=json.dumps({k: str(v) for k, v in changes.items()}) if changes else None,
+            changes=json.dumps({k: v if isinstance(v, dict) else str(v) for k, v in changes.items()}) if changes else None,
         )
         db.add(activity)
         await db.flush()

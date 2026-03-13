@@ -1,14 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_connection_crud
 from app.crud.activity import activity_crud
+from app.limiter import limiter
 
-limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.ssh_connection import (
     ConnectivityGraph, SshConnectionCreate, SshConnectionRead, SshConnectionUpdate,
@@ -23,7 +24,16 @@ class BulkDeleteRequest(BaseModel):
 
 def _conn_to_read(c) -> dict:
     return {
-        **{k: v for k, v in c.__dict__.items() if not k.startswith("_")},
+        "id": c.id,
+        "source_server_id": c.source_server_id,
+        "target_server_id": c.target_server_id,
+        "ssh_key_id": c.ssh_key_id,
+        "ssh_user": c.ssh_user,
+        "ssh_port": c.ssh_port,
+        "purpose": c.purpose,
+        "notes": c.notes,
+        "created_at": c.created_at,
+        "updated_at": c.updated_at,
         "source_server_name": c.source_server.name if c.source_server else None,
         "target_server_name": c.target_server.name if c.target_server else None,
         "ssh_key_name": c.ssh_key.name if c.ssh_key else None,
@@ -64,7 +74,10 @@ async def create_ssh_connection(request: Request, data: SshConnectionCreate, db:
     conn = await ssh_connection_crud.create(db, data.model_dump())
     conn_detail = await ssh_connection_crud.get_detail(db, conn.id)
     conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{conn.id}"
-    await activity_crud.log_activity(db, "ssh_connection", conn.id, conn_name, "created")
+    try:
+        await activity_crud.log_activity(db, "ssh_connection", conn.id, conn_name, "created")
+    except Exception:
+        logger.warning("Failed to log activity for ssh_connection create %s", conn.id, exc_info=True)
     return SshConnectionRead.model_validate(_conn_to_read(conn_detail))
 
 
@@ -76,7 +89,10 @@ async def update_ssh_connection(request: Request, id: int, data: SshConnectionUp
         raise HTTPException(404, "SSH Connection not found")
     conn_detail = await ssh_connection_crud.get_detail(db, updated.id)
     conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{id}"
-    await activity_crud.log_activity(db, "ssh_connection", id, conn_name, "updated", data.model_dump(exclude_unset=True))
+    try:
+        await activity_crud.log_activity(db, "ssh_connection", id, conn_name, "updated", data.model_dump(exclude_unset=True))
+    except Exception:
+        logger.warning("Failed to log activity for ssh_connection update %s", id, exc_info=True)
     return SshConnectionRead.model_validate(_conn_to_read(conn_detail))
 
 
@@ -88,4 +104,7 @@ async def delete_ssh_connection(request: Request, id: int, db: AsyncSession = De
         raise HTTPException(404, "SSH Connection not found")
     conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{id}"
     await ssh_connection_crud.delete(db, id)
-    await activity_crud.log_activity(db, "ssh_connection", id, conn_name, "deleted")
+    try:
+        await activity_crud.log_activity(db, "ssh_connection", id, conn_name, "deleted")
+    except Exception:
+        logger.warning("Failed to log activity for ssh_connection delete %s", id, exc_info=True)

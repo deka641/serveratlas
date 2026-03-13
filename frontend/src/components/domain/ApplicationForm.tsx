@@ -39,6 +39,41 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
   const [configNotes, setConfigNotes] = useState(initialData?.config_notes || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    let error = '';
+    switch (fieldName) {
+      case 'name':
+        if (!value || !String(value).trim()) {
+          error = 'Name is required';
+        }
+        break;
+      case 'server_id':
+        if (!value || !String(value).trim()) {
+          error = 'Server is required';
+        }
+        break;
+      case 'port':
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          const portNum = Number(value);
+          if (portNum < 1 || portNum > 65535) {
+            error = 'Port must be between 1 and 65535';
+          }
+        }
+        break;
+      case 'url':
+        if (value && String(value).trim()) {
+          const urlStr = String(value).trim();
+          if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+            error = 'URL must start with http:// or https://';
+          }
+        }
+        break;
+    }
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+  }
+
   if (serversLoading) {
     return <LoadingSpinner />;
   }
@@ -50,6 +85,23 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+
+    // Validate all fields on submit
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Name is required';
+    if (!serverId) errors.server_id = 'Server is required';
+    if (port) {
+      const portNum = Number(port);
+      if (portNum < 1 || portNum > 65535) errors.port = 'Port must be between 1 and 65535';
+    }
+    if (url.trim()) {
+      if (!url.trim().startsWith('http://') && !url.trim().startsWith('https://')) {
+        errors.url = 'URL must start with http:// or https://';
+      }
+    }
+    setFieldErrors(errors);
+    if (Object.values(errors).some((e) => e)) return;
+
     onSubmit({
       name,
       server_id: Number(serverId),
@@ -68,6 +120,8 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         label="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        onBlur={(e) => validateField('name', e.target.value)}
+        error={fieldErrors.name}
         required
         placeholder="My Application"
       />
@@ -76,6 +130,8 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         label="Server"
         value={serverId}
         onChange={(e) => setServerId(e.target.value)}
+        onBlur={(e) => validateField('server_id', e.target.value)}
+        error={fieldErrors.server_id}
         options={serverOptions}
         placeholder="Select server"
         required
@@ -93,6 +149,8 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         type="number"
         value={port}
         onChange={(e) => setPort(e.target.value)}
+        onBlur={(e) => validateField('port', e.target.value)}
+        error={fieldErrors.port}
         placeholder="8080"
         min={1}
         max={65535}
@@ -109,6 +167,8 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         label="URL"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
+        onBlur={(e) => validateField('url', e.target.value)}
+        error={fieldErrors.url}
         placeholder="https://example.com"
       />
 

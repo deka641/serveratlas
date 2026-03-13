@@ -8,6 +8,7 @@ from app.database import Base
 from app.models import *  # noqa: F401,F403
 
 config = context.config
+# Override the placeholder URL in alembic.ini with the real connection string from settings
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
 
 if config.config_file_name is not None:

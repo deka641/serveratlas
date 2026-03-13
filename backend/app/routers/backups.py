@@ -1,14 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import backup_crud
 from app.crud.activity import activity_crud
+from app.limiter import limiter
 
-limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.backup import BackupCreate, BackupRead, BackupUpdate
 
@@ -20,11 +21,24 @@ class BulkDeleteRequest(BaseModel):
 
 
 def _backup_to_read(b) -> dict:
-    d = {k: v for k, v in b.__dict__.items() if not k.startswith("_")}
-    d["application_name"] = b.application.name if b.application else None
-    d["source_server_name"] = b.source_server.name if b.source_server else None
-    d["target_server_name"] = b.target_server.name if b.target_server else None
-    return d
+    return {
+        "id": b.id,
+        "name": b.name,
+        "application_id": b.application_id,
+        "source_server_id": b.source_server_id,
+        "target_server_id": b.target_server_id,
+        "frequency": b.frequency.value if b.frequency else None,
+        "retention_days": b.retention_days,
+        "storage_path": b.storage_path,
+        "last_run_at": b.last_run_at,
+        "last_run_status": b.last_run_status.value if b.last_run_status else "never_run",
+        "notes": b.notes,
+        "created_at": b.created_at,
+        "updated_at": b.updated_at,
+        "application_name": b.application.name if b.application else None,
+        "source_server_name": b.source_server.name if b.source_server else None,
+        "target_server_name": b.target_server.name if b.target_server else None,
+    }
 
 
 @router.get("")
@@ -63,7 +77,10 @@ async def get_backup(id: int, db: AsyncSession = Depends(get_db)):
 async def create_backup(request: Request, data: BackupCreate, db: AsyncSession = Depends(get_db)):
     backup = await backup_crud.create(db, data.model_dump())
     detail = await backup_crud.get_detail(db, backup.id)
-    await activity_crud.log_activity(db, "backup", backup.id, data.name, "created")
+    try:
+        await activity_crud.log_activity(db, "backup", backup.id, data.name, "created")
+    except Exception:
+        logger.warning("Failed to log activity for backup create %s", backup.id, exc_info=True)
     return BackupRead.model_validate(_backup_to_read(detail))
 
 
@@ -74,7 +91,10 @@ async def update_backup(request: Request, id: int, data: BackupUpdate, db: Async
     if not updated:
         raise HTTPException(404, "Backup not found")
     detail = await backup_crud.get_detail(db, updated.id)
-    await activity_crud.log_activity(db, "backup", id, data.name or detail.name, "updated", data.model_dump(exclude_unset=True))
+    try:
+        await activity_crud.log_activity(db, "backup", id, data.name or detail.name, "updated", data.model_dump(exclude_unset=True))
+    except Exception:
+        logger.warning("Failed to log activity for backup update %s", id, exc_info=True)
     return BackupRead.model_validate(_backup_to_read(detail))
 
 
@@ -85,4 +105,7 @@ async def delete_backup(request: Request, id: int, db: AsyncSession = Depends(ge
     if not backup:
         raise HTTPException(404, "Backup not found")
     await backup_crud.delete(db, id)
-    await activity_crud.log_activity(db, "backup", id, backup.name, "deleted")
+    try:
+        await activity_crud.log_activity(db, "backup", id, backup.name, "deleted")
+    except Exception:
+        logger.warning("Failed to log activity for backup delete %s", id, exc_info=True)

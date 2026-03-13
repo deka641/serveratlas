@@ -59,6 +59,32 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
   );
   const [notes, setNotes] = useState(initialData?.notes || '');
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    let error = '';
+    switch (fieldName) {
+      case 'name':
+        if (!value || !String(value).trim()) {
+          error = 'Name is required';
+        }
+        break;
+      case 'source_server_id':
+        if (!value || !String(value).trim()) {
+          error = 'Source server is required';
+        }
+        break;
+      case 'retention_days':
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          if (Number(value) <= 0) {
+            error = 'Retention days must be greater than 0';
+          }
+        }
+        break;
+    }
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+  }
+
   const { data: applications, loading: appsLoading } = useApplications(
     sourceServerId ? { server_id: Number(sourceServerId) } : undefined
   );
@@ -92,6 +118,17 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+
+    // Validate all fields on submit
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Name is required';
+    if (!sourceServerId) errors.source_server_id = 'Source server is required';
+    if (retentionDays && Number(retentionDays) <= 0) {
+      errors.retention_days = 'Retention days must be greater than 0';
+    }
+    setFieldErrors(errors);
+    if (Object.values(errors).some((e) => e)) return;
+
     onSubmit({
       name,
       source_server_id: Number(sourceServerId),
@@ -111,6 +148,8 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
         label="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        onBlur={(e) => validateField('name', e.target.value)}
+        error={fieldErrors.name}
         required
         placeholder="Daily DB Backup"
       />
@@ -119,6 +158,8 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
         label="Source Server"
         value={sourceServerId}
         onChange={(e) => handleSourceChange(e.target.value)}
+        onBlur={(e) => validateField('source_server_id', e.target.value)}
+        error={fieldErrors.source_server_id}
         options={serverOptions}
         placeholder="Select source server"
         required
@@ -151,6 +192,8 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
         type="number"
         value={retentionDays}
         onChange={(e) => setRetentionDays(e.target.value)}
+        onBlur={(e) => validateField('retention_days', e.target.value)}
+        error={fieldErrors.retention_days}
         placeholder="30"
         min={1}
       />

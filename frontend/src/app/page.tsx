@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useData } from '@/hooks/useData';
 import { formatDateTime } from '@/lib/formatters';
-import type { Activity } from '@/lib/types';
+import type { Activity, OverdueBackup } from '@/lib/types';
 import PageContainer from '@/components/PageContainer';
 import StatsCards from '@/components/domain/StatsCards';
 import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
@@ -45,6 +45,11 @@ export default function DashboardPage() {
   } = useData(() => api.getBackupCoverage());
 
   const {
+    data: overdueBackups,
+    loading: overdueLoading,
+  } = useData(() => api.getOverdueBackups());
+
+  const {
     data: activitiesResult,
     loading: activitiesLoading,
   } = useData(() => api.listActivities({ limit: 10 }));
@@ -53,6 +58,8 @@ export default function DashboardPage() {
 
   const servers = serversResult?.items ?? null;
   const error = statsError || costError || serversError;
+
+  const allZero = stats && stats.total_servers === 0 && stats.total_providers === 0 && stats.total_applications === 0;
 
   return (
     <PageContainer
@@ -66,6 +73,42 @@ export default function DashboardPage() {
       }
     >
       <div className="space-y-8">
+        {/* Welcome card for empty database */}
+        {!statsLoading && allZero && (
+          <Card>
+            <div className="text-center py-4">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome to ServerAtlas</h2>
+              <p className="text-sm text-gray-600 mb-6">Get started by setting up your infrastructure in 3 steps:</p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link href="/providers/new">
+                  <Button variant="secondary">
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">1</span>
+                      Add a Provider
+                    </span>
+                  </Button>
+                </Link>
+                <Link href="/servers/new">
+                  <Button variant="secondary">
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">2</span>
+                      Add a Server
+                    </span>
+                  </Button>
+                </Link>
+                <Link href="/applications/new">
+                  <Button variant="secondary">
+                    <span className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">3</span>
+                      Add an Application
+                    </span>
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </Card>
+        )}
+
         <section>
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
             Overview
@@ -87,6 +130,57 @@ export default function DashboardPage() {
             <CostOverview costSummary={costSummary} />
           ) : null}
         </section>
+
+        {/* Overdue Backups Warning */}
+        {!overdueLoading && overdueBackups && overdueBackups.length > 0 && (
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">
+              Overdue Backups
+            </h2>
+            <div className="mb-4 flex items-center gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3">
+              <svg className="h-5 w-5 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span className="text-sm font-medium text-amber-800">
+                {overdueBackups.length} backup{overdueBackups.length > 1 ? 's are' : ' is'} overdue.
+              </span>
+            </div>
+            <Card noPadding>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Name</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Frequency</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Last Run</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Server</th>
+                      <th className="px-4 py-2 text-left font-medium text-gray-500">Hours Overdue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {overdueBackups.map((b: OverdueBackup) => (
+                      <tr key={b.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">
+                          <Link href={`/backups/${b.id}`} className="font-medium text-blue-600 hover:underline">
+                            {b.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2 capitalize">{b.frequency}</td>
+                        <td className="px-4 py-2">{b.last_run_at ? formatDateTime(b.last_run_at) : 'Never'}</td>
+                        <td className="px-4 py-2">{b.source_server_name ?? '\u2014'}</td>
+                        <td className="px-4 py-2">
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                            {b.hours_overdue}h overdue
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </section>
+        )}
 
         <section>
           <h2 className="mb-4 text-lg font-semibold text-gray-900">
@@ -144,9 +238,14 @@ export default function DashboardPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">
-            Recent Activity
-          </h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Recent Activity
+            </h2>
+            <Link href="/activities" className="text-sm text-blue-600 hover:underline">
+              View all
+            </Link>
+          </div>
           {activitiesLoading ? (
             <SectionSkeleton height="h-48" />
           ) : activities && activities.length > 0 ? (

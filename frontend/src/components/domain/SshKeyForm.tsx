@@ -31,8 +31,29 @@ export default function SshKeyForm({ initialData, onSubmit, loading, error }: Ss
   const [comment, setComment] = useState(initialData?.comment || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    let error = '';
+    switch (fieldName) {
+      case 'name':
+        if (!value || !String(value).trim()) {
+          error = 'Name is required';
+        }
+        break;
+    }
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+  }
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+
+    // Validate all fields on submit
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Name is required';
+    setFieldErrors(errors);
+    if (Object.values(errors).some((e) => e)) return;
+
     onSubmit({
       name,
       key_type: keyType || null,
@@ -49,6 +70,8 @@ export default function SshKeyForm({ initialData, onSubmit, loading, error }: Ss
         label="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        onBlur={(e) => validateField('name', e.target.value)}
+        error={fieldErrors.name}
         required
         placeholder="My SSH Key"
       />

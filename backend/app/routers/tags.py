@@ -1,14 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.tag import tag_crud
 from app.database import get_db
+from app.limiter import limiter
 from app.schemas.tag import TagCreate, TagRead
-
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 

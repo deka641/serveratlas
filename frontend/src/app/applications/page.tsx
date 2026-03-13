@@ -148,6 +148,21 @@ function ApplicationsPageContent() {
             options={statusFilterOptions}
           />
         </div>
+        {(urlState.status || urlState.server || searchTerm) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setUrlState({ status: '', server: '', search: '', page: '0' });
+              setSearchTerm('');
+            }}
+          >
+            Clear filters
+            <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs">
+              {[urlState.status, urlState.server, searchTerm].filter(Boolean).length}
+            </span>
+          </Button>
+        )}
       </div>
 
       {applications && applications.length > 0 ? (

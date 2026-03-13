@@ -69,7 +69,7 @@ async function requestPaginated<T>(path: string, options?: RequestInit): Promise
 
 import type {
   Activity, Application, Backup, BackupCoverage, ConnectivityGraph, CostSummary,
-  DashboardStats, Provider, ProviderWithServers, RecentBackup, Server,
+  DashboardStats, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
   ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag,
 } from './types';
 
@@ -189,6 +189,7 @@ export const api = {
   getCostSummary: () => request<CostSummary>('/dashboard/cost-summary'),
   getRecentBackups: () => request<RecentBackup[]>('/dashboard/recent-backups'),
   getBackupCoverage: () => request<BackupCoverage>('/dashboard/backup-coverage'),
+  getOverdueBackups: () => request<OverdueBackup[]>('/dashboard/overdue-backups'),
 
   // Tags
   listTags: () => request<Tag[]>('/tags'),
@@ -198,13 +199,21 @@ export const api = {
   removeTagFromServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'DELETE' }),
 
   // Activities
-  listActivities: (params?: { entity_type?: string; entity_id?: number; skip?: number; limit?: number }) => {
+  listActivities: (params?: { entity_type?: string; entity_id?: number; action?: string; search?: string; date_from?: string; date_to?: string; skip?: number; limit?: number }) => {
     const qs = new URLSearchParams();
     if (params?.entity_type) qs.set('entity_type', params.entity_type);
     if (params?.entity_id) qs.set('entity_id', String(params.entity_id));
+    if (params?.action) qs.set('action', params.action);
+    if (params?.search) qs.set('search', params.search);
+    if (params?.date_from) qs.set('date_from', params.date_from);
+    if (params?.date_to) qs.set('date_to', params.date_to);
     if (params?.skip != null) qs.set('skip', String(params.skip));
     if (params?.limit != null) qs.set('limit', String(params.limit));
     const q = qs.toString();
     return requestPaginated<Activity>(`/activities${q ? '?' + q : ''}`);
   },
+
+  // Server health check
+  updateServerHealthCheck: (id: number, data: { status: string; response_time_ms?: number }) =>
+    request<Server>(`/servers/${id}/health-check`, { method: 'POST', body: JSON.stringify(data) }),
 };

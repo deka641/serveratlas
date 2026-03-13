@@ -21,6 +21,7 @@ import Input from '@/components/ui/Input';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import CopyableText from '@/components/ui/CopyableText';
 import DetailSkeleton from '@/components/ui/DetailSkeleton';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
 
@@ -522,6 +523,28 @@ export default function ServerDetailPage() {
                 </dl>
               </Card>
 
+              <Card title="Health Check">
+                <dl className="divide-y divide-gray-100">
+                  <DetailRow
+                    label="Status"
+                    value={
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={`inline-block h-2.5 w-2.5 rounded-full ${
+                            server.last_check_status === 'healthy' ? 'bg-green-500' :
+                            server.last_check_status === 'unhealthy' ? 'bg-red-500' :
+                            'bg-gray-300'
+                          }`}
+                        />
+                        {server.last_check_status ?? 'unknown'}
+                      </span>
+                    }
+                  />
+                  <DetailRow label="Last Checked" value={server.last_checked_at ? formatDateTime(server.last_checked_at) : 'Never'} />
+                  <DetailRow label="Response Time" value={server.response_time_ms != null ? `${server.response_time_ms} ms` : null} />
+                </dl>
+              </Card>
+
               <Card title="Access">
                 <dl className="divide-y divide-gray-100">
                   <DetailRow label="Login User" value={server.login_user} />
@@ -530,9 +553,11 @@ export default function ServerDetailPage() {
               </Card>
 
               <Card title="Notes" className="lg:col-span-2">
-                <p className="whitespace-pre-wrap text-sm text-gray-700">
-                  {server.notes || '\u2014'}
-                </p>
+                {server.notes ? (
+                  <MarkdownRenderer content={server.notes} />
+                ) : (
+                  <p className="text-sm text-gray-500">{'\u2014'}</p>
+                )}
               </Card>
             </div>
 

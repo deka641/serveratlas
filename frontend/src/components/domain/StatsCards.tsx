@@ -63,6 +63,14 @@ export default function StatsCards({ stats, backupCoverage }: StatsCardsProps) {
         accentColor="border-l-blue-500"
         animIndex={0}
       />
+      {stats.unhealthy_servers > 0 && (
+        <StatCard
+          label="Unhealthy Servers"
+          value={stats.unhealthy_servers}
+          accentColor="border-l-red-500"
+          animIndex={1}
+        />
+      )}
       <StatCard
         label="Providers"
         value={stats.total_providers}

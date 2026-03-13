@@ -1,9 +1,11 @@
 import json
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.crud.utils import escape_like as _escape_like
 from app.models.activity import Activity
 
 
@@ -44,16 +46,31 @@ class ActivityCRUD:
         result = await db.execute(select(func.count(Activity.id)))
         return result.scalar() or 0
 
-    async def get_multi(
-        self, db: AsyncSession,
-        entity_type: str | None = None, entity_id: int | None = None,
-        skip: int = 0, limit: int = 50,
-    ) -> list[Activity]:
-        stmt = select(Activity)
+    def _apply_filters(self, stmt, entity_type=None, entity_id=None, action=None, search=None, date_from=None, date_to=None):
         if entity_type:
             stmt = stmt.where(Activity.entity_type == entity_type)
         if entity_id:
             stmt = stmt.where(Activity.entity_id == entity_id)
+        if action:
+            stmt = stmt.where(Activity.action == action)
+        if search:
+            escaped = _escape_like(search)
+            stmt = stmt.where(Activity.entity_name.ilike(f"%{escaped}%", escape="\\"))
+        if date_from:
+            stmt = stmt.where(Activity.created_at >= date_from)
+        if date_to:
+            stmt = stmt.where(Activity.created_at <= date_to)
+        return stmt
+
+    async def get_multi(
+        self, db: AsyncSession,
+        entity_type: str | None = None, entity_id: int | None = None,
+        action: str | None = None, search: str | None = None,
+        date_from: datetime | None = None, date_to: datetime | None = None,
+        skip: int = 0, limit: int = 50,
+    ) -> list[Activity]:
+        stmt = select(Activity)
+        stmt = self._apply_filters(stmt, entity_type, entity_id, action, search, date_from, date_to)
         stmt = stmt.order_by(Activity.created_at.desc()).offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
@@ -61,12 +78,11 @@ class ActivityCRUD:
     async def count_filtered(
         self, db: AsyncSession,
         entity_type: str | None = None, entity_id: int | None = None,
+        action: str | None = None, search: str | None = None,
+        date_from: datetime | None = None, date_to: datetime | None = None,
     ) -> int:
         stmt = select(func.count(Activity.id))
-        if entity_type:
-            stmt = stmt.where(Activity.entity_type == entity_type)
-        if entity_id:
-            stmt = stmt.where(Activity.entity_id == entity_id)
+        stmt = self._apply_filters(stmt, entity_type, entity_id, action, search, date_from, date_to)
         result = await db.execute(stmt)
         return result.scalar() or 0
 

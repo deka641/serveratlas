@@ -38,6 +38,15 @@ class ApplicationUpdate(BaseModel):
     url: str | None = None
     notes: str | None = None
 
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v):
+        if v is None or v == "":
+            return None
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
+
 
 class ApplicationRead(ApplicationBase):
     id: int

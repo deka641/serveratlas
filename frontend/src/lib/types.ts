@@ -45,6 +45,9 @@ export interface Server {
   login_user: string | null;
   login_notes: string | null;
   notes: string | null;
+  last_checked_at: string | null;
+  last_check_status: string | null;
+  response_time_ms: number | null;
   created_at: string;
   updated_at: string;
   tags?: Tag[];
@@ -155,6 +158,7 @@ export interface ConnectivityGraph {
 export interface DashboardStats {
   total_servers: number;
   active_servers: number;
+  unhealthy_servers: number;
   total_providers: number;
   total_applications: number;
   total_ssh_keys: number;
@@ -194,6 +198,16 @@ export interface BackupCoverage {
   covered_applications: number;
   failed_backups_24h: number;
   uncovered_applications: string[];
+}
+
+export interface OverdueBackup {
+  id: number;
+  name: string;
+  frequency: string;
+  last_run_at: string | null;
+  source_server_name: string | null;
+  application_name: string | null;
+  hours_overdue: number;
 }
 
 export interface Activity {

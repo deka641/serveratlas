@@ -27,12 +27,22 @@ export default function ServerTable({ servers, onDelete, selectable, selectedIds
       label: 'Name',
       sortable: true,
       render: (server) => (
-        <Link
-          href={`/servers/${server.id}`}
-          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
-        >
-          {server.name}
-        </Link>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full ${
+              server.last_check_status === 'healthy' ? 'bg-green-500' :
+              server.last_check_status === 'unhealthy' ? 'bg-red-500' :
+              'bg-gray-300'
+            }`}
+            title={`Health: ${server.last_check_status ?? 'unknown'}${server.response_time_ms != null ? ` (${server.response_time_ms}ms)` : ''}`}
+          />
+          <Link
+            href={`/servers/${server.id}`}
+            className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            {server.name}
+          </Link>
+        </div>
       ),
     },
     {

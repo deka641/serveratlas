@@ -106,12 +106,29 @@ function SshConnectionsPageContent() {
         </div>
       }
     >
-      <div className="mb-4">
-        <Input
-          placeholder="Search connections..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <Input
+            placeholder="Search connections..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        {searchTerm && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setUrlState({ search: '', page: '0' });
+              setSearchTerm('');
+            }}
+          >
+            Clear filters
+            <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs">
+              1
+            </span>
+          </Button>
+        )}
       </div>
       {connections && connections.length > 0 ? (
         <>

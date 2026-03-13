@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import CommandPalette from '@/components/CommandPalette';
 import { ToastProvider } from '@/components/ui/Toast';
 import { MobileSidebarContext } from '@/components/MobileSidebarContext';
 
@@ -36,6 +37,7 @@ export default function RootLayout({
                 onMobileClose={() => setMobileOpen(false)}
               />
               <div className="flex flex-1 flex-col min-w-0">{children}</div>
+              <CommandPalette />
             </div>
           </MobileSidebarContext.Provider>
         </ToastProvider>

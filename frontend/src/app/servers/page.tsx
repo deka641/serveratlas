@@ -25,7 +25,7 @@ import { formatRAM, formatDisk } from '@/lib/formatters';
 function useTagOptions() {
   const [tags, setTags] = useState<Tag[]>([]);
   useEffect(() => {
-    api.listTags().then(setTags).catch(() => {});
+    api.listTags().then(setTags).catch((e) => console.error('Failed to load tags:', e));
   }, []);
   return useMemo(
     () => [
@@ -67,16 +67,7 @@ function ServersPageContent() {
     setUrlState({ search: debouncedSearch, page: '0' });
   }, [debouncedSearch]);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Ctrl+K is now handled by the global CommandPalette
 
   const tagFilterOptions = useTagOptions();
 
@@ -214,9 +205,24 @@ function ServersPageContent() {
             label="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search servers... (Ctrl+K)"
+            placeholder="Search servers..."
           />
         </div>
+        {(urlState.status || urlState.provider || urlState.tag || search) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setUrlState({ status: '', provider: '', tag: '', search: '', page: '0' });
+              setSearch('');
+            }}
+          >
+            Clear filters
+            <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs">
+              {[urlState.status, urlState.provider, urlState.tag, search].filter(Boolean).length}
+            </span>
+          </Button>
+        )}
       </div>
 
       {servers && servers.length === 0 ? (

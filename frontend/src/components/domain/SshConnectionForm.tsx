@@ -37,6 +37,33 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
   const [purpose, setPurpose] = useState(initialData?.purpose || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    let error = '';
+    switch (fieldName) {
+      case 'source_server_id':
+        if (!value || !String(value).trim()) {
+          error = 'Source server is required';
+        }
+        break;
+      case 'target_server_id':
+        if (!value || !String(value).trim()) {
+          error = 'Target server is required';
+        }
+        break;
+      case 'ssh_port':
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          const portNum = Number(value);
+          if (portNum < 1 || portNum > 65535) {
+            error = 'SSH port must be between 1 and 65535';
+          }
+        }
+        break;
+    }
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+  }
+
   if (serversLoading || keysLoading) {
     return <LoadingSpinner />;
   }
@@ -58,6 +85,18 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+
+    // Validate all fields on submit
+    const errors: Record<string, string> = {};
+    if (!sourceServerId) errors.source_server_id = 'Source server is required';
+    if (!targetServerId) errors.target_server_id = 'Target server is required';
+    if (sshPort) {
+      const portNum = Number(sshPort);
+      if (portNum < 1 || portNum > 65535) errors.ssh_port = 'SSH port must be between 1 and 65535';
+    }
+    setFieldErrors(errors);
+    if (Object.values(errors).some((e) => e)) return;
+
     onSubmit({
       source_server_id: Number(sourceServerId),
       target_server_id: Number(targetServerId),
@@ -82,6 +121,8 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
         label="Source Server"
         value={sourceServerId}
         onChange={(e) => handleSourceChange(e.target.value)}
+        onBlur={(e) => validateField('source_server_id', e.target.value)}
+        error={fieldErrors.source_server_id}
         options={serverOptions}
         placeholder="Select source server"
         required
@@ -91,6 +132,8 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
         label="Target Server"
         value={targetServerId}
         onChange={(e) => setTargetServerId(e.target.value)}
+        onBlur={(e) => validateField('target_server_id', e.target.value)}
+        error={fieldErrors.target_server_id}
         options={targetOptions}
         placeholder="Select target server"
         required
@@ -115,6 +158,8 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
         type="number"
         value={sshPort}
         onChange={(e) => setSshPort(e.target.value)}
+        onBlur={(e) => validateField('ssh_port', e.target.value)}
+        error={fieldErrors.ssh_port}
         min={1}
         max={65535}
       />

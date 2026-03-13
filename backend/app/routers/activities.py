@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,12 +15,23 @@ router = APIRouter(prefix="/activities", tags=["activities"])
 async def list_activities(
     entity_type: str | None = None,
     entity_id: int | None = None,
+    action: str | None = None,
+    search: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=0, le=500),
     db: AsyncSession = Depends(get_db),
 ):
-    activities = await activity_crud.get_multi(db, entity_type=entity_type, entity_id=entity_id, skip=skip, limit=limit)
-    total = await activity_crud.count_filtered(db, entity_type=entity_type, entity_id=entity_id)
+    activities = await activity_crud.get_multi(
+        db, entity_type=entity_type, entity_id=entity_id,
+        action=action, search=search, date_from=date_from, date_to=date_to,
+        skip=skip, limit=limit,
+    )
+    total = await activity_crud.count_filtered(
+        db, entity_type=entity_type, entity_id=entity_id,
+        action=action, search=search, date_from=date_from, date_to=date_to,
+    )
     data = []
     for a in activities:
         d = ActivityRead.model_validate(a)

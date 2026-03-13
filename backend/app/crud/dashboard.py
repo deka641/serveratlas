@@ -1,40 +1,48 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.application import Application
-from app.models.backup import Backup, BackupStatus
+from app.models.backup import Backup, BackupFrequency, BackupStatus
 from app.models.provider import Provider
 from app.models.server import Server, ServerStatus
 from app.models.ssh_key import SshKey
-from app.schemas.dashboard import BackupCoverage, CostByProvider, CostSummary, CurrencyTotal, DashboardStats, RecentBackup
+from app.schemas.dashboard import BackupCoverage, CostByProvider, CostSummary, CurrencyTotal, DashboardStats, OverdueBackup, RecentBackup
 
 
 class DashboardCRUD:
     async def get_stats(self, db: AsyncSession) -> DashboardStats:
-        total_servers = (await db.execute(select(func.count(Server.id)))).scalar() or 0
-        active_servers = (await db.execute(
-            select(func.count(Server.id)).where(Server.status == ServerStatus.active)
-        )).scalar() or 0
+        # Combine server counts into one query
+        server_stmt = select(
+            func.count(Server.id).label("total"),
+            func.count(Server.id).filter(Server.status == ServerStatus.active).label("active"),
+            func.count(Server.id).filter(Server.last_check_status == "unhealthy").label("unhealthy"),
+        )
+        server_row = (await db.execute(server_stmt)).one()
+
+        # Combine backup counts into one query
+        backup_stmt = select(
+            func.count(Backup.id).label("total"),
+            func.count(Backup.id).filter(Backup.last_run_status == BackupStatus.failed).label("failing"),
+        )
+        backup_row = (await db.execute(backup_stmt)).one()
+
         total_providers = (await db.execute(select(func.count(Provider.id)))).scalar() or 0
         total_applications = (await db.execute(select(func.count(Application.id)))).scalar() or 0
         total_ssh_keys = (await db.execute(select(func.count(SshKey.id)))).scalar() or 0
-        total_backups = (await db.execute(select(func.count(Backup.id)))).scalar() or 0
-        failing_backups = (await db.execute(
-            select(func.count(Backup.id)).where(Backup.last_run_status == BackupStatus.failed)
-        )).scalar() or 0
 
         return DashboardStats(
-            total_servers=total_servers,
-            active_servers=active_servers,
+            total_servers=server_row.total,
+            active_servers=server_row.active,
+            unhealthy_servers=server_row.unhealthy,
             total_providers=total_providers,
             total_applications=total_applications,
             total_ssh_keys=total_ssh_keys,
-            total_backups=total_backups,
-            failing_backups=failing_backups,
+            total_backups=backup_row.total,
+            failing_backups=backup_row.failing,
         )
 
     async def get_cost_summary(self, db: AsyncSession) -> CostSummary:
@@ -133,6 +141,51 @@ class DashboardCRUD:
             failed_backups_24h=failed_24h,
             uncovered_applications=uncovered_names,
         )
+
+
+    async def get_overdue_backups(self, db: AsyncSession) -> list[OverdueBackup]:
+        frequency_hours = {
+            BackupFrequency.hourly: 2,
+            BackupFrequency.daily: 26,
+            BackupFrequency.weekly: 170,
+            BackupFrequency.monthly: 744,
+        }
+
+        now = datetime.utcnow()
+        stmt = (
+            select(Backup)
+            .options(
+                selectinload(Backup.source_server),
+                selectinload(Backup.application),
+            )
+            .where(
+                Backup.frequency != BackupFrequency.manual,
+                Backup.last_run_at.isnot(None),
+            )
+        )
+        result = await db.execute(stmt)
+        backups = result.scalars().all()
+
+        overdue = []
+        for b in backups:
+            max_hours = frequency_hours.get(b.frequency)
+            if max_hours is None:
+                continue
+            deadline = b.last_run_at + timedelta(hours=max_hours)
+            if now > deadline:
+                hours_overdue = int((now - deadline).total_seconds() / 3600)
+                overdue.append(OverdueBackup(
+                    id=b.id,
+                    name=b.name,
+                    frequency=b.frequency.value,
+                    last_run_at=b.last_run_at.isoformat() if b.last_run_at else None,
+                    source_server_name=b.source_server.name if b.source_server else None,
+                    application_name=b.application.name if b.application else None,
+                    hours_overdue=hours_overdue,
+                ))
+
+        overdue.sort(key=lambda x: x.hours_overdue, reverse=True)
+        return overdue
 
 
 dashboard_crud = DashboardCRUD()

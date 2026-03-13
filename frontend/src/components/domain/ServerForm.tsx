@@ -55,7 +55,34 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
   const [loginNotes, setLoginNotes] = useState(initialData?.login_notes ?? '');
   const [notes, setNotes] = useState(initialData?.notes ?? '');
 
-  const [nameError, setNameError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  function validateField(name: string, value: string | number | null | undefined) {
+    let error = '';
+    switch (name) {
+      case 'name':
+        if (!value || !String(value).trim()) {
+          error = 'Name is required';
+        }
+        break;
+      case 'ip_v4':
+        if (value && String(value).trim()) {
+          const ipv4Pattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+          if (!ipv4Pattern.test(String(value).trim())) {
+            error = 'Invalid IPv4 address format';
+          }
+        }
+        break;
+      case 'monthly_cost':
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          if (Number(value) < 0) {
+            error = 'Monthly cost must be 0 or greater';
+          }
+        }
+        break;
+    }
+    setFieldErrors((prev) => ({ ...prev, [name]: error }));
+  }
 
   const providerOptions = (providers ?? []).map((p) => ({
     value: String(p.id),
@@ -64,12 +91,19 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setNameError('');
 
-    if (!name.trim()) {
-      setNameError('Name is required');
-      return;
+    // Validate all fields on submit
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Name is required';
+    if (ipV4.trim()) {
+      const ipv4Pattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+      if (!ipv4Pattern.test(ipV4.trim())) errors.ip_v4 = 'Invalid IPv4 address format';
     }
+    if (monthlyCost !== '' && Number(monthlyCost) < 0) {
+      errors.monthly_cost = 'Monthly cost must be 0 or greater';
+    }
+    setFieldErrors(errors);
+    if (Object.values(errors).some((e) => e)) return;
 
     const data: Partial<Server> = {
       name: name.trim(),
@@ -103,10 +137,11 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
         </legend>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
-            label="Name *"
+            label="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            error={nameError}
+            onBlur={(e) => validateField('name', e.target.value)}
+            error={fieldErrors.name}
             required
           />
           <Input
@@ -140,6 +175,8 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
             label="IPv4"
             value={ipV4}
             onChange={(e) => setIpV4(e.target.value)}
+            onBlur={(e) => validateField('ip_v4', e.target.value)}
+            error={fieldErrors.ip_v4}
             placeholder="e.g. 192.168.1.1"
           />
           <Input
@@ -221,6 +258,8 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
             min={0}
             value={monthlyCost}
             onChange={(e) => setMonthlyCost(e.target.value)}
+            onBlur={(e) => validateField('monthly_cost', e.target.value)}
+            error={fieldErrors.monthly_cost}
           />
           <Select
             label="Currency"

@@ -30,9 +30,19 @@ export default function ServerStatusGrid({ servers }: ServerStatusGridProps) {
         >
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
-              <h4 className="truncate text-sm font-semibold text-gray-900">
-                {server.name}
-              </h4>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${
+                    server.last_check_status === 'healthy' ? 'bg-green-500' :
+                    server.last_check_status === 'unhealthy' ? 'bg-red-500' :
+                    'bg-gray-300'
+                  }`}
+                  title={`Health: ${server.last_check_status ?? 'unknown'}`}
+                />
+                <h4 className="truncate text-sm font-semibold text-gray-900">
+                  {server.name}
+                </h4>
+              </div>
               <p className="mt-1 font-mono text-xs text-gray-500">
                 {server.ip_v4 ?? 'No IP'}
               </p>

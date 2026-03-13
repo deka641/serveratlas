@@ -6,6 +6,7 @@ from pydantic import BaseModel, field_serializer
 class DashboardStats(BaseModel):
     total_servers: int = 0
     active_servers: int = 0
+    unhealthy_servers: int = 0
     total_providers: int = 0
     total_applications: int = 0
     total_ssh_keys: int = 0
@@ -60,3 +61,13 @@ class BackupCoverage(BaseModel):
     covered_applications: int = 0
     failed_backups_24h: int = 0
     uncovered_applications: list[str] = []
+
+
+class OverdueBackup(BaseModel):
+    id: int
+    name: str
+    frequency: str
+    last_run_at: str | None = None
+    source_server_name: str | None = None
+    application_name: str | None = None
+    hours_overdue: int = 0

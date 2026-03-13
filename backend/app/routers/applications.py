@@ -1,14 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud
 from app.crud.activity import activity_crud
+from app.limiter import limiter
 
-limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.application import ApplicationCreate, ApplicationRead, ApplicationUpdate
 
@@ -61,7 +62,10 @@ async def get_application(id: int, db: AsyncSession = Depends(get_db)):
 async def create_application(request: Request, data: ApplicationCreate, db: AsyncSession = Depends(get_db)):
     created = await application_crud.create(db, data.model_dump())
     app = await application_crud.get_detail(db, created.id)
-    await activity_crud.log_activity(db, "application", app.id, data.name, "created")
+    try:
+        await activity_crud.log_activity(db, "application", app.id, data.name, "created")
+    except Exception:
+        logger.warning("Failed to log activity for application create %s", app.id, exc_info=True)
     return ApplicationRead.model_validate({
         **app.__dict__,
         "server_name": app.server.name if app.server else None,
@@ -75,7 +79,10 @@ async def update_application(request: Request, id: int, data: ApplicationUpdate,
     if not updated:
         raise HTTPException(404, "Application not found")
     app = await application_crud.get_detail(db, updated.id)
-    await activity_crud.log_activity(db, "application", id, data.name or app.name, "updated", data.model_dump(exclude_unset=True))
+    try:
+        await activity_crud.log_activity(db, "application", id, data.name or app.name, "updated", data.model_dump(exclude_unset=True))
+    except Exception:
+        logger.warning("Failed to log activity for application update %s", id, exc_info=True)
     return ApplicationRead.model_validate({
         **app.__dict__,
         "server_name": app.server.name if app.server else None,
@@ -89,4 +96,7 @@ async def delete_application(request: Request, id: int, db: AsyncSession = Depen
     if not app:
         raise HTTPException(404, "Application not found")
     await application_crud.delete(db, id)
-    await activity_crud.log_activity(db, "application", id, app.name, "deleted")
+    try:
+        await activity_crud.log_activity(db, "application", id, app.name, "deleted")
+    except Exception:
+        logger.warning("Failed to log activity for application delete %s", id, exc_info=True)

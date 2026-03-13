@@ -27,20 +27,42 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
   const [website, setWebsite] = useState(initialData?.website ?? '');
   const [supportContact, setSupportContact] = useState(initialData?.support_contact ?? '');
   const [notes, setNotes] = useState(initialData?.notes ?? '');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!name.trim()) {
-      newErrors.name = 'Name is required';
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    let error = '';
+    switch (fieldName) {
+      case 'name':
+        if (!value || !String(value).trim()) {
+          error = 'Name is required';
+        }
+        break;
+      case 'website':
+        if (value && String(value).trim()) {
+          const urlStr = String(value).trim();
+          if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+            error = 'Website must start with http:// or https://';
+          }
+        }
+        break;
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+  }
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+
+    // Validate all fields on submit
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Name is required';
+    if (website.trim()) {
+      if (!website.trim().startsWith('http://') && !website.trim().startsWith('https://')) {
+        errors.website = 'Website must start with http:// or https://';
+      }
+    }
+    setFieldErrors(errors);
+    if (Object.values(errors).some((e) => e)) return;
+
     onSubmit({
       name: name.trim(),
       website: website.trim() || '',
@@ -55,15 +77,18 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
         label="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
+        onBlur={(e) => validateField('name', e.target.value)}
         placeholder="e.g. AWS, Hetzner, DigitalOcean"
         required
-        error={errors.name}
+        error={fieldErrors.name}
         disabled={loading}
       />
       <Input
         label="Website"
         value={website}
         onChange={(e) => setWebsite(e.target.value)}
+        onBlur={(e) => validateField('website', e.target.value)}
+        error={fieldErrors.website}
         placeholder="https://example.com"
         type="url"
         disabled={loading}

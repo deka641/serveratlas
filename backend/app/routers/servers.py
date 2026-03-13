@@ -1,17 +1,18 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud, server_crud, ssh_connection_crud, ssh_key_crud
 from app.crud.activity import activity_crud
+from app.limiter import limiter
 
-limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.application import ApplicationRead
-from app.schemas.server import ServerCreate, ServerRead, ServerReadDetail, ServerUpdate
+from app.schemas.server import HealthCheckUpdate, ServerCreate, ServerRead, ServerReadDetail, ServerUpdate
 from app.schemas.server_ssh_key import ServerSshKeyCreate, ServerSshKeyRead
 from app.schemas.ssh_connection import SshConnectionRead
 
@@ -31,7 +32,10 @@ def _server_to_read(server) -> dict:
         "status": server.status.value if server.status else "active",
         "monthly_cost": server.monthly_cost, "cost_currency": server.cost_currency,
         "login_user": server.login_user, "login_notes": server.login_notes,
-        "notes": server.notes, "created_at": server.created_at, "updated_at": server.updated_at,
+        "notes": server.notes,
+        "last_checked_at": server.last_checked_at, "last_check_status": server.last_check_status,
+        "response_time_ms": server.response_time_ms,
+        "created_at": server.created_at, "updated_at": server.updated_at,
         "provider_name": server.provider.name if server.provider else None,
         "tags": [
             {"id": st.tag.id, "name": st.tag.name, "color": st.tag.color}
@@ -85,7 +89,10 @@ async def get_server(id: int, db: AsyncSession = Depends(get_db)):
 async def create_server(request: Request, data: ServerCreate, db: AsyncSession = Depends(get_db)):
     created = await server_crud.create(db, data.model_dump())
     server = await server_crud.get_with_provider(db, created.id)
-    await activity_crud.log_activity(db, "server", server.id, data.name, "created")
+    try:
+        await activity_crud.log_activity(db, "server", server.id, data.name, "created")
+    except Exception:
+        logger.warning("Failed to log activity for server create %s", server.id, exc_info=True)
     return _server_to_read(server)
 
 
@@ -96,7 +103,10 @@ async def update_server(request: Request, id: int, data: ServerUpdate, db: Async
     if not updated:
         raise HTTPException(404, "Server not found")
     server = await server_crud.get_with_provider(db, updated.id)
-    await activity_crud.log_activity(db, "server", id, data.name or server.name, "updated", data.model_dump(exclude_unset=True))
+    try:
+        await activity_crud.log_activity(db, "server", id, data.name or server.name, "updated", data.model_dump(exclude_unset=True))
+    except Exception:
+        logger.warning("Failed to log activity for server update %s", id, exc_info=True)
     return _server_to_read(server)
 
 
@@ -107,7 +117,10 @@ async def delete_server(request: Request, id: int, db: AsyncSession = Depends(ge
     if not server:
         raise HTTPException(404, "Server not found")
     await server_crud.delete(db, id)
-    await activity_crud.log_activity(db, "server", id, server.name, "deleted")
+    try:
+        await activity_crud.log_activity(db, "server", id, server.name, "deleted")
+    except Exception:
+        logger.warning("Failed to log activity for server delete %s", id, exc_info=True)
 
 
 @router.get("/{id}/applications", response_model=list[ApplicationRead])
@@ -169,3 +182,20 @@ async def remove_server_ssh_key(id: int, key_id: int, db: AsyncSession = Depends
     removed = await server_crud.remove_ssh_key(db, id, key_id)
     if not removed:
         raise HTTPException(404, "Association not found")
+
+
+@router.post("/{id}/health-check", response_model=ServerRead)
+@limiter.limit("30/minute")
+async def update_health_check(request: Request, id: int, data: HealthCheckUpdate, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime
+    server = await server_crud.get(db, id)
+    if not server:
+        raise HTTPException(404, "Server not found")
+    update_data = {
+        "last_checked_at": datetime.utcnow(),
+        "last_check_status": data.status,
+        "response_time_ms": data.response_time_ms,
+    }
+    await server_crud.update(db, id, update_data)
+    server = await server_crud.get_with_provider(db, id)
+    return _server_to_read(server)

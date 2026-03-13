@@ -96,10 +96,18 @@ class ServerUpdate(BaseModel):
         return _validate_ip(v, 6)
 
 
+class HealthCheckUpdate(BaseModel):
+    status: Literal["healthy", "unhealthy"] = "healthy"
+    response_time_ms: int | None = None
+
+
 class ServerRead(ServerBase):
     id: int
     provider_name: str | None = None
     tags: list[TagRead] = []
+    last_checked_at: datetime | None = None
+    last_check_status: str | None = "unknown"
+    response_time_ms: int | None = None
     created_at: datetime
     updated_at: datetime
 

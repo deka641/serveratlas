@@ -1,14 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_key_crud
 from app.crud.activity import activity_crud
+from app.limiter import limiter
 
-limiter = Limiter(key_func=get_remote_address)
+logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.ssh_key import SshKeyCreate, SshKeyRead, SshKeyReadWithServers, SshKeyUpdate
 
@@ -53,7 +54,10 @@ async def get_ssh_key(id: int, db: AsyncSession = Depends(get_db)):
 @limiter.limit("30/minute")
 async def create_ssh_key(request: Request, data: SshKeyCreate, db: AsyncSession = Depends(get_db)):
     created = await ssh_key_crud.create(db, data.model_dump())
-    await activity_crud.log_activity(db, "ssh_key", created.id, data.name, "created")
+    try:
+        await activity_crud.log_activity(db, "ssh_key", created.id, data.name, "created")
+    except Exception:
+        logger.warning("Failed to log activity for ssh_key create %s", created.id, exc_info=True)
     return created
 
 
@@ -63,7 +67,10 @@ async def update_ssh_key(request: Request, id: int, data: SshKeyUpdate, db: Asyn
     updated = await ssh_key_crud.update(db, id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(404, "SSH Key not found")
-    await activity_crud.log_activity(db, "ssh_key", id, data.name or updated.name, "updated", data.model_dump(exclude_unset=True))
+    try:
+        await activity_crud.log_activity(db, "ssh_key", id, data.name or updated.name, "updated", data.model_dump(exclude_unset=True))
+    except Exception:
+        logger.warning("Failed to log activity for ssh_key update %s", id, exc_info=True)
     return updated
 
 
@@ -74,4 +81,7 @@ async def delete_ssh_key(request: Request, id: int, db: AsyncSession = Depends(g
     if not key:
         raise HTTPException(404, "SSH Key not found")
     await ssh_key_crud.delete(db, id)
-    await activity_crud.log_activity(db, "ssh_key", id, key.name, "deleted")
+    try:
+        await activity_crud.log_activity(db, "ssh_key", id, key.name, "deleted")
+    except Exception:
+        logger.warning("Failed to log activity for ssh_key delete %s", id, exc_info=True)

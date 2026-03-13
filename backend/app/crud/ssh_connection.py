@@ -71,24 +71,27 @@ class SshConnectionCRUD(CRUDBase[SshConnection]):
         return list(result.scalars().all())
 
     async def get_graph_data(self, db: AsyncSession) -> ConnectivityGraph:
-        conn_result = await db.execute(select(SshConnection))
+        stmt = (
+            select(SshConnection)
+            .options(
+                selectinload(SshConnection.source_server),
+                selectinload(SshConnection.target_server),
+            )
+        )
+        conn_result = await db.execute(stmt)
         connections = list(conn_result.scalars().all())
 
-        server_ids = set()
+        server_map: dict[int, Server] = {}
         for c in connections:
-            server_ids.add(c.source_server_id)
-            server_ids.add(c.target_server_id)
+            if c.source_server and c.source_server.id not in server_map:
+                server_map[c.source_server.id] = c.source_server
+            if c.target_server and c.target_server.id not in server_map:
+                server_map[c.target_server.id] = c.target_server
 
-        nodes = []
-        if server_ids:
-            server_result = await db.execute(
-                select(Server).where(Server.id.in_(server_ids))
-            )
-            servers = server_result.scalars().all()
-            nodes = [
-                GraphNode(id=s.id, name=s.name, status=s.status.value, ip_v4=s.ip_v4)
-                for s in servers
-            ]
+        nodes = [
+            GraphNode(id=s.id, name=s.name, status=s.status.value, ip_v4=s.ip_v4)
+            for s in server_map.values()
+        ]
 
         edges = [
             GraphEdge(

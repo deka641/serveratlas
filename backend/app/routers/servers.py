@@ -62,7 +62,14 @@ async def list_servers(
 @limiter.limit("30/minute")
 async def bulk_delete_servers(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     for server_id in body.ids[:100]:
-        await server_crud.delete(db, server_id)
+        server = await server_crud.get(db, server_id)
+        if server:
+            server_name = server.name
+            await server_crud.delete(db, server_id)
+            try:
+                await activity_crud.log_activity(db, "server", server_id, server_name, "deleted")
+            except Exception:
+                logger.warning("Failed to log activity for server bulk-delete %s", server_id, exc_info=True)
 
 
 @router.get("/{id}", response_model=ServerReadDetail)

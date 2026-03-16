@@ -79,7 +79,8 @@ async def health():
             await conn.execute(text("SELECT 1"))
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
+        logger.error("Health check failed: %s", e)
         return JSONResponse(
             status_code=503,
-            content={"status": "unhealthy", "database": str(e)},
+            content={"status": "unhealthy", "database": "connection_failed"},
         )

@@ -279,18 +279,24 @@ export default function DashboardPage() {
                     </span>
                     <ActivityActionBadge action={activity.action} />
                     <span className="text-gray-600">{activity.entity_type}</span>
-                    {activity.action === 'deleted' ? (
-                      <span className="font-medium text-gray-500 truncate">
-                        {activity.entity_name}
-                      </span>
-                    ) : (
-                      <Link
-                        href={activityEntityUrl(activity)}
-                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
-                      >
-                        {activity.entity_name}
-                      </Link>
-                    )}
+                    {(() => {
+                      const url = activityEntityUrl(activity);
+                      if (activity.action === 'deleted' || !url) {
+                        return (
+                          <span className="font-medium text-gray-500 truncate">
+                            {activity.entity_name}
+                          </span>
+                        );
+                      }
+                      return (
+                        <Link
+                          href={url}
+                          className="font-medium text-blue-600 hover:text-blue-800 hover:underline truncate"
+                        >
+                          {activity.entity_name}
+                        </Link>
+                      );
+                    })()}
                   </li>
                 ))}
               </ul>
@@ -306,7 +312,8 @@ export default function DashboardPage() {
   );
 }
 
-function activityEntityUrl(activity: Activity): string {
+function activityEntityUrl(activity: Activity): string | null {
+  if (activity.entity_type === 'tag') return null;
   const typeMap: Record<string, string> = {
     ssh_key: 'ssh-keys',
     ssh_connection: 'ssh-connections',

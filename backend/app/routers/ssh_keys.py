@@ -32,7 +32,14 @@ async def list_ssh_keys(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0
 @limiter.limit("30/minute")
 async def bulk_delete_ssh_keys(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     for key_id in body.ids[:100]:
-        await ssh_key_crud.delete(db, key_id)
+        key = await ssh_key_crud.get(db, key_id)
+        if key:
+            key_name = key.name
+            await ssh_key_crud.delete(db, key_id)
+            try:
+                await activity_crud.log_activity(db, "ssh_key", key_id, key_name, "deleted")
+            except Exception:
+                logger.warning("Failed to log activity for ssh_key bulk-delete %s", key_id, exc_info=True)
 
 
 @router.get("/{id}", response_model=SshKeyReadWithServers)

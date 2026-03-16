@@ -42,7 +42,14 @@ async def list_applications(
 @limiter.limit("30/minute")
 async def bulk_delete_applications(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     for app_id in body.ids[:100]:
-        await application_crud.delete(db, app_id)
+        app = await application_crud.get(db, app_id)
+        if app:
+            app_name = app.name
+            await application_crud.delete(db, app_id)
+            try:
+                await activity_crud.log_activity(db, "application", app_id, app_name, "deleted")
+            except Exception:
+                logger.warning("Failed to log activity for application bulk-delete %s", app_id, exc_info=True)
 
 
 @router.get("/{id}", response_model=ApplicationRead)

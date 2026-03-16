@@ -52,7 +52,14 @@ async def list_ssh_connections(skip: int = Query(0, ge=0), limit: int = Query(10
 @limiter.limit("30/minute")
 async def bulk_delete_ssh_connections(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     for conn_id in body.ids[:100]:
-        await ssh_connection_crud.delete(db, conn_id)
+        conn_detail = await ssh_connection_crud.get_detail(db, conn_id)
+        if conn_detail:
+            conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{conn_id}"
+            await ssh_connection_crud.delete(db, conn_id)
+            try:
+                await activity_crud.log_activity(db, "ssh_connection", conn_id, conn_name, "deleted")
+            except Exception:
+                logger.warning("Failed to log activity for ssh_connection bulk-delete %s", conn_id, exc_info=True)
 
 
 @router.get("/graph", response_model=ConnectivityGraph)

@@ -23,6 +23,7 @@ const STATIC_PAGES: NavigationItem[] = [
   { id: 'page-applications', name: 'Applications', href: '/applications', group: 'Pages', icon: 'page' },
   { id: 'page-backups', name: 'Backups', href: '/backups', group: 'Pages', icon: 'page' },
   { id: 'page-connectivity', name: 'Connectivity Map', href: '/connectivity', group: 'Pages', icon: 'page' },
+  { id: 'page-tags', name: 'Tags', href: '/tags', group: 'Pages', icon: 'page' },
   { id: 'page-activities', name: 'Activities', href: '/activities', group: 'Pages', icon: 'page' },
   { id: 'page-report', name: 'Report', href: '/report', group: 'Pages', icon: 'page' },
 ];

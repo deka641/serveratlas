@@ -192,9 +192,19 @@ export const api = {
   getOverdueBackups: () => request<OverdueBackup[]>('/dashboard/overdue-backups'),
 
   // Tags
-  listTags: () => request<Tag[]>('/tags'),
+  listTags: (params?: { search?: string; skip?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set('search', params.search);
+    if (params?.skip != null) qs.set('skip', String(params.skip));
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return requestPaginated<Tag>(`/tags${q ? '?' + q : ''}`);
+  },
+  getTag: (id: number) => request<Tag>(`/tags/${id}`),
   createTag: (data: { name: string; color?: string }) => request<Tag>('/tags', { method: 'POST', body: JSON.stringify(data) }),
+  updateTag: (id: number, data: { name?: string; color?: string }) => request<Tag>(`/tags/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTag: (id: number) => request<void>(`/tags/${id}`, { method: 'DELETE' }),
+  bulkDeleteTags: (ids: number[]) => request<void>('/tags/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   addTagToServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'POST' }),
   removeTagFromServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'DELETE' }),
 

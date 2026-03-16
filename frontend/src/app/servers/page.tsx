@@ -25,7 +25,7 @@ import { formatRAM, formatDisk } from '@/lib/formatters';
 function useTagOptions() {
   const [tags, setTags] = useState<Tag[]>([]);
   useEffect(() => {
-    api.listTags().then(setTags).catch((e) => console.error('Failed to load tags:', e));
+    api.listTags().then((res) => setTags(res.items)).catch((e) => console.error('Failed to load tags:', e));
   }, []);
   return useMemo(
     () => [
@@ -119,6 +119,7 @@ function ServersPageContent() {
     { key: 'disk_gb' as const, label: 'Disk', formatter: (s: Server) => formatDisk(s.disk_gb) },
     { key: 'location' as const, label: 'Location' },
     { key: 'monthly_cost' as const, label: 'Monthly Cost', formatter: (s: Server) => formatCost(s.monthly_cost, s.cost_currency) },
+    { key: 'tags' as const, label: 'Tags', formatter: (s: Server) => (s.tags || []).map((t) => t.name).join(', ') },
   ];
 
   function handleExportCsv() {

@@ -38,7 +38,14 @@ async def list_providers(skip: int = Query(0, ge=0), limit: int = Query(100, ge=
 @limiter.limit("30/minute")
 async def bulk_delete_providers(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     for provider_id in body.ids[:100]:
-        await provider_crud.delete(db, provider_id)
+        provider = await provider_crud.get(db, provider_id)
+        if provider:
+            provider_name = provider.name
+            await provider_crud.delete(db, provider_id)
+            try:
+                await activity_crud.log_activity(db, "provider", provider_id, provider_name, "deleted")
+            except Exception:
+                logger.warning("Failed to log activity for provider bulk-delete %s", provider_id, exc_info=True)
 
 
 @router.get("/{id}", response_model=ProviderRead)

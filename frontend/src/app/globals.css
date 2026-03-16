@@ -57,10 +57,14 @@
   nav, header button, [data-no-print] { display: none !important; }
   .shadow-sm, .shadow-md { box-shadow: none !important; }
   .bg-gray-50, .bg-gray-100 { background: white !important; }
-  section { break-inside: avoid; }
+
+  /* D15: Table headers repeat on every printed page */
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  section { break-inside: auto; }
+  section > h2 { break-after: avoid; }
 
   h1, h2, h3 { page-break-after: avoid; }
-  table, figure, .card { page-break-inside: avoid; }
   table { font-size: 10pt; }
   body { font-size: 11pt; }
 
@@ -74,4 +78,7 @@
   /* Hide sidebar and make main content full-width */
   aside, .md\:flex-shrink-0 { display: none !important; }
   .flex.min-h-screen > div { width: 100% !important; }
+
+  /* D16: Page numbers in print footer */
+  @page { @bottom-center { content: counter(page); } }
 }

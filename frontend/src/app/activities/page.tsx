@@ -28,6 +28,7 @@ const entityTypeOptions = [
   { value: 'backup', label: 'Backup' },
   { value: 'ssh_key', label: 'SSH Key' },
   { value: 'ssh_connection', label: 'SSH Connection' },
+  { value: 'tag', label: 'Tag' },
 ];
 
 const actionOptions = [
@@ -35,9 +36,12 @@ const actionOptions = [
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },
   { value: 'deleted', label: 'Deleted' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'unassigned', label: 'Unassigned' },
 ];
 
-function entityUrl(entityType: string, entityId: number): string {
+function entityUrl(entityType: string, entityId: number): string | null {
+  if (entityType === 'tag') return null;
   const pathMap: Record<string, string> = {
     ssh_key: 'ssh-keys',
     ssh_connection: 'ssh-connections',
@@ -51,6 +55,8 @@ function ActionBadge({ action }: { action: string }) {
     created: 'bg-green-100 text-green-800',
     updated: 'bg-blue-100 text-blue-800',
     deleted: 'bg-red-100 text-red-800',
+    assigned: 'bg-purple-100 text-purple-800',
+    unassigned: 'bg-orange-100 text-orange-800',
   };
   const color = colorMap[action] || 'bg-gray-100 text-gray-800';
   return (
@@ -68,6 +74,7 @@ function formatEntityType(entityType: string): string {
     backup: 'Backup',
     ssh_key: 'SSH Key',
     ssh_connection: 'SSH Connection',
+    tag: 'Tag',
   };
   return labelMap[entityType] || entityType;
 }
@@ -169,17 +176,20 @@ function ActivitiesPageContent() {
       key: 'entity_name',
       label: 'Entity Name',
       sortable: true,
-      render: (activity) =>
-        activity.action === 'deleted' ? (
-          <span className="text-gray-500">{activity.entity_name}</span>
-        ) : (
+      render: (activity) => {
+        const url = entityUrl(activity.entity_type, activity.entity_id);
+        if (activity.action === 'deleted' || !url) {
+          return <span className="text-gray-500">{activity.entity_name}</span>;
+        }
+        return (
           <Link
-            href={entityUrl(activity.entity_type, activity.entity_id)}
+            href={url}
             className="text-blue-600 hover:text-blue-800 hover:underline"
           >
             {activity.entity_name}
           </Link>
-        ),
+        );
+      },
     },
     {
       key: 'changes',

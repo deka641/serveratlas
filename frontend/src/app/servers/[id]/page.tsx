@@ -119,8 +119,8 @@ export default function ServerDetailPage() {
   const loadAllTags = useCallback(async () => {
     setTagsLoading(true);
     try {
-      const tags = await api.listTags();
-      setAllTags(tags);
+      const result = await api.listTags();
+      setAllTags(result.items);
     } catch {
       addToast('error', 'Failed to load tags');
     } finally {

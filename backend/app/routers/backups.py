@@ -61,7 +61,14 @@ async def list_backups(
 @limiter.limit("30/minute")
 async def bulk_delete_backups(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
     for backup_id in body.ids[:100]:
-        await backup_crud.delete(db, backup_id)
+        backup = await backup_crud.get(db, backup_id)
+        if backup:
+            backup_name = backup.name
+            await backup_crud.delete(db, backup_id)
+            try:
+                await activity_crud.log_activity(db, "backup", backup_id, backup_name, "deleted")
+            except Exception:
+                logger.warning("Failed to log activity for backup bulk-delete %s", backup_id, exc_info=True)
 
 
 @router.get("/{id}", response_model=BackupRead)

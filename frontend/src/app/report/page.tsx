@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useData } from '@/hooks/useData';
 import { api } from '@/lib/api';
 import { formatCost, formatRAM, formatDisk, formatDateTime } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
+import Button from '@/components/ui/Button';
 import type { Application, SshConnection, Tag, Server, Backup, OverdueBackup } from '@/lib/types';
 
 function ReportSkeleton() {
@@ -37,6 +39,13 @@ function ReportSkeleton() {
   );
 }
 
+function formatOverdueDuration(hours: number): string {
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+}
+
 export default function ReportPage() {
   const { data: stats } = useData(() => api.getDashboardStats());
   const { data: costSummary } = useData(() => api.getCostSummary());
@@ -44,7 +53,8 @@ export default function ReportPage() {
   const { data: backupCoverage } = useData(() => api.getBackupCoverage());
   const { data: applicationsResult } = useData(() => api.listApplications({ limit: 500 }));
   const { data: connectionsResult } = useData(() => api.listSshConnections({ limit: 500 }));
-  const { data: tags } = useData(() => api.listTags());
+  const { data: tagsResult } = useData(() => api.listTags());
+  const tags = tagsResult?.items ?? [];
   const { data: backupsResult } = useData(() => api.listBackups({ limit: 500 }));
   const { data: overdueBackups } = useData(() => api.getOverdueBackups());
 
@@ -67,6 +77,31 @@ export default function ReportPage() {
       tagServerCounts[t.id] = (tagServerCounts[t.id] || 0) + 1;
     });
   });
+
+  // D14: Resource summary computations
+  const totalCpu = servers.reduce((sum, s) => sum + (s.cpu_cores ?? 0), 0);
+  const totalRam = servers.reduce((sum, s) => sum + (s.ram_mb ?? 0), 0);
+  const totalDisk = servers.reduce((sum, s) => sum + (s.disk_gb ?? 0), 0);
+
+  // Resources by provider
+  const resourcesByProvider: Record<string, { cpu: number; ram: number; disk: number; count: number }> = {};
+  servers.forEach((s) => {
+    const providerName = s.provider_name || 'Unassigned';
+    if (!resourcesByProvider[providerName]) {
+      resourcesByProvider[providerName] = { cpu: 0, ram: 0, disk: 0, count: 0 };
+    }
+    resourcesByProvider[providerName].cpu += s.cpu_cores ?? 0;
+    resourcesByProvider[providerName].ram += s.ram_mb ?? 0;
+    resourcesByProvider[providerName].disk += s.disk_gb ?? 0;
+    resourcesByProvider[providerName].count += 1;
+  });
+
+  // Resources by status
+  const activeServers = servers.filter((s) => s.status === 'active');
+  const inactiveServers = servers.filter((s) => s.status !== 'active');
+  const activeCpu = activeServers.reduce((sum, s) => sum + (s.cpu_cores ?? 0), 0);
+  const activeRam = activeServers.reduce((sum, s) => sum + (s.ram_mb ?? 0), 0);
+  const activeDisk = activeServers.reduce((sum, s) => sum + (s.disk_gb ?? 0), 0);
 
   const generatedAt = new Date();
   const dateWithDay = generatedAt.toLocaleDateString('en-US', {
@@ -109,23 +144,28 @@ export default function ReportPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-8 print:p-0 print:text-xs">
-      <header className="mb-8 border-b border-gray-200 pb-4" data-no-print>
-        <button
-          onClick={() => window.print()}
-          className="float-right rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 print:hidden"
-          data-no-print
-        >
+      {/* C10 + C11: Navigation header with back link and print button */}
+      <header className="mb-8 flex items-center justify-between border-b border-gray-200 pb-4" data-no-print>
+        <Link href="/" className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Dashboard
+        </Link>
+        <Button variant="secondary" onClick={() => window.print()}>
           Print Report
-        </button>
+        </Button>
       </header>
 
+      {/* D16: Report title / print header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">ServerAtlas</h1>
         <p className="text-lg text-gray-600">Infrastructure Report</p>
         <p className="mt-1 text-sm text-gray-500">Generated on {dateWithDay}</p>
+        <hr className="mt-4 border-gray-200" />
       </div>
 
-      {/* Executive Summary (#17) */}
+      {/* Executive Summary */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Executive Summary</h2>
         {allClear ? (
@@ -182,6 +222,84 @@ export default function ReportPage() {
         </div>
       </section>
 
+      {/* D14: Resource Summary */}
+      {servers.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Resource Summary</h2>
+          <div className="mb-4 grid grid-cols-3 gap-4">
+            <div className="rounded border p-3">
+              <p className="text-2xl font-bold">{totalCpu}</p>
+              <p className="text-sm text-gray-500">Total CPU Cores</p>
+            </div>
+            <div className="rounded border p-3">
+              <p className="text-2xl font-bold">{formatRAM(totalRam)}</p>
+              <p className="text-sm text-gray-500">Total RAM</p>
+            </div>
+            <div className="rounded border p-3">
+              <p className="text-2xl font-bold">{formatDisk(totalDisk)}</p>
+              <p className="text-sm text-gray-500">Total Disk</p>
+            </div>
+          </div>
+
+          {/* By status */}
+          <table className="w-full text-sm print:text-xs border-collapse mb-4">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Status</th>
+                <th className="py-2 text-right font-medium">Servers</th>
+                <th className="py-2 text-right font-medium">CPU Cores</th>
+                <th className="py-2 text-right font-medium">RAM</th>
+                <th className="py-2 text-right font-medium">Disk</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b">
+                <td className="py-2">Active</td>
+                <td className="py-2 text-right">{activeServers.length}</td>
+                <td className="py-2 text-right">{activeCpu}</td>
+                <td className="py-2 text-right">{formatRAM(activeRam)}</td>
+                <td className="py-2 text-right">{formatDisk(activeDisk)}</td>
+              </tr>
+              {inactiveServers.length > 0 && (
+                <tr className="border-b">
+                  <td className="py-2">Inactive / Maintenance</td>
+                  <td className="py-2 text-right">{inactiveServers.length}</td>
+                  <td className="py-2 text-right">{totalCpu - activeCpu}</td>
+                  <td className="py-2 text-right">{formatRAM(totalRam - activeRam)}</td>
+                  <td className="py-2 text-right">{formatDisk(totalDisk - activeDisk)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {/* By provider */}
+          {Object.keys(resourcesByProvider).length > 1 && (
+            <table className="w-full text-sm print:text-xs border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-left font-medium">Provider</th>
+                  <th className="py-2 text-right font-medium">Servers</th>
+                  <th className="py-2 text-right font-medium">CPU Cores</th>
+                  <th className="py-2 text-right font-medium">RAM</th>
+                  <th className="py-2 text-right font-medium">Disk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(resourcesByProvider).map(([name, res]) => (
+                  <tr key={name} className="border-b">
+                    <td className="py-2">{name}</td>
+                    <td className="py-2 text-right">{res.count}</td>
+                    <td className="py-2 text-right">{res.cpu}</td>
+                    <td className="py-2 text-right">{formatRAM(res.ram)}</td>
+                    <td className="py-2 text-right">{formatDisk(res.disk)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+
       {/* Cost Breakdown */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost Breakdown</h2>
@@ -219,7 +337,7 @@ export default function ReportPage() {
         )}
       </section>
 
-      {/* Server Inventory (#14 + #16) */}
+      {/* Server Inventory */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Server Inventory</h2>
         <table className="w-full text-sm print:text-xs border-collapse">
@@ -245,6 +363,7 @@ export default function ReportPage() {
                 <td className="py-2">{s.name}</td>
                 <td className="py-2"><StatusBadge status={s.status} /></td>
                 <td className="py-2">
+                  {/* C12: aria-label for health status */}
                   <span className="flex items-center gap-1">
                     <span
                       className={`inline-block h-2 w-2 rounded-full print-color-exact ${
@@ -252,6 +371,12 @@ export default function ReportPage() {
                         s.last_check_status === 'unhealthy' ? 'bg-red-500' :
                         'bg-gray-300'
                       }`}
+                      aria-label={`Health status: ${
+                        s.last_check_status === 'healthy' ? 'Healthy' :
+                        s.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                        'Unknown'
+                      }`}
+                      role="img"
                     />
                     <span className="text-xs">
                       {s.last_check_status === 'healthy' ? 'Healthy' :
@@ -348,7 +473,7 @@ export default function ReportPage() {
       {/* Tag Distribution */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Tag Distribution</h2>
-        {tags && tags.length > 0 ? (
+        {tags.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => (
               <span
@@ -401,7 +526,48 @@ export default function ReportPage() {
         </section>
       )}
 
-      {/* Backup Schedule (#15) */}
+      {/* C13 + D17: Overdue Backups detail section */}
+      {overdueBackups && overdueBackups.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Overdue Backups</h2>
+          <p className="mb-3 text-sm text-red-600 font-medium">
+            {overdueBackups.length} backup{overdueBackups.length !== 1 ? 's require' : ' requires'} attention.
+          </p>
+          <table className="w-full text-sm print:text-xs border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Name</th>
+                <th className="py-2 text-left font-medium">Source Server</th>
+                <th className="py-2 text-left font-medium">Frequency</th>
+                <th className="py-2 text-left font-medium">Last Run</th>
+                <th className="py-2 text-left font-medium">Overdue By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overdueBackups.map((b: OverdueBackup) => (
+                <tr key={b.id} className="border-b">
+                  <td className="py-2 font-medium">{b.name}</td>
+                  <td className="py-2">{b.source_server_name || '\u2014'}</td>
+                  <td className="py-2 capitalize">{b.frequency}</td>
+                  <td className="py-2">{b.last_run_at ? formatDateTime(b.last_run_at) : 'Never'}</td>
+                  <td className="py-2">
+                    <span className={`inline-flex items-center gap-1 font-medium ${
+                      b.hours_overdue >= 48 ? 'text-red-600' : 'text-amber-600'
+                    }`}>
+                      <span className={`inline-block h-2 w-2 rounded-full print-color-exact ${
+                        b.hours_overdue >= 48 ? 'bg-red-500' : 'bg-amber-500'
+                      }`} />
+                      {formatOverdueDuration(b.hours_overdue)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* Backup Schedule */}
       {backups.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Schedule</h2>

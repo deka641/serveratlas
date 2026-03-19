@@ -13,6 +13,15 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+function sanitizeUrl(url: string): string {
+  const decoded = url.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+  const trimmed = decoded.trim().toLowerCase();
+  if (trimmed.startsWith('http:') || trimmed.startsWith('https:') || trimmed.startsWith('mailto:') || trimmed.startsWith('#') || trimmed.startsWith('/')) {
+    return url;
+  }
+  return '#';
+}
+
 function parseInline(text: string): string {
   let result = escapeHtml(text);
 
@@ -27,10 +36,13 @@ function parseInline(text: string): string {
   result = result.replace(/\*(.+?)\*/g, '<em>$1</em>');
   result = result.replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>');
 
-  // Links: [text](url)
+  // Links: [text](url) — sanitize URL protocol
   result = result.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    (_match: string, text: string, url: string) => {
+      const sanitized = sanitizeUrl(url);
+      return `<a href="${sanitized}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    }
   );
 
   return result;

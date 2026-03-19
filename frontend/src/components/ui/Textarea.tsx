@@ -1,6 +1,6 @@
 'use client';
 
-import { TextareaHTMLAttributes, forwardRef } from 'react';
+import { TextareaHTMLAttributes, forwardRef, useId } from 'react';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -9,7 +9,9 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ label, error, className = '', id, ...rest }, ref) => {
-    const textareaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const generatedId = useId();
+    const textareaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : generatedId);
+    const errorId = `${textareaId}-error`;
 
     return (
       <div className="w-full">
@@ -31,9 +33,11 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
               : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
           } disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 ${className}`}
           rows={4}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           {...rest}
         />
-        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+        {error && <p id={errorId} role="alert" className="mt-1 text-sm text-red-600">{error}</p>}
       </div>
     );
   }

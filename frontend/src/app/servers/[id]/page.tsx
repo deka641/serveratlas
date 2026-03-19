@@ -617,6 +617,12 @@ export default function ServerDetailPage() {
               </Card>
             </div>
 
+            {server.documentation && (
+              <Card title="Documentation" className="mt-6">
+                <MarkdownRenderer content={server.documentation} />
+              </Card>
+            )}
+
             {/* Backup Coverage Card */}
             {server.applications.length > 0 && (
               <Card title="Backup Coverage" className="mt-6">

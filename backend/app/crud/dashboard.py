@@ -154,6 +154,10 @@ class DashboardCRUD:
         }
 
         now = datetime.utcnow()
+        # Pre-filter: smallest tolerance is 2h (hourly), so only load backups
+        # whose last_run_at is at least 2h ago. This drastically reduces
+        # the number of rows loaded into memory.
+        min_cutoff = now - timedelta(hours=2)
         stmt = (
             select(Backup)
             .options(
@@ -163,6 +167,7 @@ class DashboardCRUD:
             .where(
                 Backup.frequency != BackupFrequency.manual,
                 Backup.last_run_at.isnot(None),
+                Backup.last_run_at < min_cutoff,
             )
         )
         result = await db.execute(stmt)

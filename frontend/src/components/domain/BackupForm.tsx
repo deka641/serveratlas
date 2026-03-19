@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Backup, BackupFrequency, BackupStatus } from '@/lib/types';
 import { useServers } from '@/hooks/useServers';
 import { useApplications } from '@/hooks/useApplications';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
@@ -60,6 +61,23 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
   const [notes, setNotes] = useState(initialData?.notes || '');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const isDirty = JSON.stringify({
+    name, sourceServerId, targetServerId, applicationId, frequency, retentionDays,
+    storagePath, lastRunStatus, notes,
+  }) !== JSON.stringify({
+    name: initialData?.name || '',
+    sourceServerId: initialData?.source_server_id ? String(initialData.source_server_id) : '',
+    targetServerId: initialData?.target_server_id ? String(initialData.target_server_id) : '',
+    applicationId: initialData?.application_id ? String(initialData.application_id) : '',
+    frequency: initialData?.frequency || 'daily',
+    retentionDays: initialData?.retention_days !== null && initialData?.retention_days !== undefined
+      ? String(initialData.retention_days) : '',
+    storagePath: initialData?.storage_path || '',
+    lastRunStatus: initialData?.last_run_status || 'never_run',
+    notes: initialData?.notes || '',
+  });
+  useUnsavedChanges(isDirty);
 
   function validateField(fieldName: string, value: string | number | null | undefined) {
     let error = '';
@@ -219,6 +237,15 @@ export default function BackupForm({ initialData, onSubmit, loading, error }: Ba
         placeholder="Additional notes..."
         rows={3}
       />
+
+      {isDirty && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          You have unsaved changes
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

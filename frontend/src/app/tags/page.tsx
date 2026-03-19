@@ -14,6 +14,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import TagTable from '@/components/domain/TagTable';
 import Pagination from '@/components/ui/Pagination';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import TableSkeleton from '@/components/ui/TableSkeleton';
 import Card from '@/components/ui/Card';
 import type { Tag, Server } from '@/lib/types';
 
@@ -128,7 +129,6 @@ function TagsPageContent() {
   return (
     <PageContainer
       title="Tags"
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -269,7 +269,9 @@ function TagsPageContent() {
         )}
       </div>
 
-      {tags && tags.length > 0 ? (
+      {loading ? (
+        <TableSkeleton columns={4} rows={8} />
+      ) : tags && tags.length > 0 ? (
         <>
           <TagTable
             tags={tags}
@@ -282,14 +284,14 @@ function TagsPageContent() {
           />
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={(p) => setUrlState({ page: String(p) })} />
         </>
-      ) : !loading ? (
+      ) : (
         <EmptyState
           message={searchTerm ? 'No tags match your search' : 'No tags yet'}
           description={searchTerm ? 'Try a different search term.' : 'Get started by adding your first tag.'}
           actionLabel={searchTerm ? undefined : 'Add Tag'}
           onAction={searchTerm ? undefined : () => setShowCreateForm(true)}
         />
-      ) : null}
+      )}
 
       <ConfirmDialog
         open={showBulkDelete}

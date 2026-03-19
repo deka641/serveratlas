@@ -143,6 +143,7 @@ export default function ServerTable({ servers, onDelete, selectable, selectedIds
         selectable={selectable}
         selectedIds={selectedIds}
         onSelectionChange={onSelectionChange}
+        stickyFirstColumn
       />
       <ConfirmDialog
         open={deleteTarget !== null}

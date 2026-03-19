@@ -36,6 +36,7 @@ class Server(Base):
     login_user: Mapped[str | None] = mapped_column(String(255))
     login_notes: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    documentation: Mapped[str | None] = mapped_column(Text)
     last_checked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     last_check_status: Mapped[str | None] = mapped_column(String(20), default="unknown")
     response_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

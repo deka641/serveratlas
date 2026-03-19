@@ -11,6 +11,18 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+function sanitizeErrorMessage(message: string): string {
+  // Remove URLs, file paths, and DB field names
+  let sanitized = message
+    .replace(/https?:\/\/[^\s]+/g, '[URL]')
+    .replace(/\/[\w./-]+/g, '[path]')
+    .replace(/\b\w+\.\w+\.\w+\b/g, '[ref]');
+  if (sanitized.length > 200) {
+    sanitized = sanitized.slice(0, 200) + '...';
+  }
+  return sanitized;
+}
+
 export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -35,14 +47,19 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <h2 className="mb-2 text-lg font-semibold text-gray-900">Something went wrong</h2>
+            <h2 className="mb-2 text-lg font-semibold text-gray-900" role="alert">Something went wrong</h2>
             <p className="mb-4 text-sm text-gray-600">
               An unexpected error occurred. You can try again or reload the page.
             </p>
             {this.state.error && (
-              <p className="mb-4 rounded bg-gray-100 p-2 text-xs font-mono text-gray-500 break-all">
-                {this.state.error.message}
-              </p>
+              <details className="mb-4 text-left">
+                <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">
+                  Show error details
+                </summary>
+                <p className="mt-2 rounded bg-gray-100 p-2 text-xs font-mono text-gray-500 break-all">
+                  {sanitizeErrorMessage(this.state.error.message)}
+                </p>
+              </details>
             )}
             <div className="flex items-center justify-center gap-3">
               <button

@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -85,6 +85,25 @@ class ActivityCRUD:
         stmt = self._apply_filters(stmt, entity_type, entity_id, action, search, date_from, date_to)
         result = await db.execute(stmt)
         return result.scalar() or 0
+
+    async def delete_older_than(self, db: AsyncSession, days: int) -> int:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        stmt = select(func.count(Activity.id)).where(Activity.created_at < cutoff)
+        count = (await db.execute(stmt)).scalar() or 0
+        if count > 0:
+            from sqlalchemy import delete as sql_delete
+            await db.execute(sql_delete(Activity).where(Activity.created_at < cutoff))
+            await db.flush()
+        return count
+
+    async def get_stats(self, db: AsyncSession) -> dict:
+        total = (await db.execute(select(func.count(Activity.id)))).scalar() or 0
+        oldest_stmt = select(func.min(Activity.created_at))
+        oldest = (await db.execute(oldest_stmt)).scalar()
+        return {
+            "total_count": total,
+            "oldest_entry": oldest.isoformat() if oldest else None,
+        }
 
 
 activity_crud = ActivityCRUD()

@@ -4,10 +4,12 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Server, ServerStatus } from '@/lib/types';
 import { useProviders } from '@/hooks/useProviders';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 
 interface ServerFormProps {
   initialData?: Partial<Server>;
@@ -54,8 +56,35 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
   const [loginUser, setLoginUser] = useState(initialData?.login_user ?? '');
   const [loginNotes, setLoginNotes] = useState(initialData?.login_notes ?? '');
   const [notes, setNotes] = useState(initialData?.notes ?? '');
+  const [documentation, setDocumentation] = useState(initialData?.documentation ?? '');
+  const [showDocPreview, setShowDocPreview] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const isDirty = JSON.stringify({
+    name, hostname, providerId, status, ipV4, ipV6, os, cpuCores, ramMb, diskGb,
+    location, datacenter, monthlyCost, costCurrency, loginUser, loginNotes, notes, documentation,
+  }) !== JSON.stringify({
+    name: initialData?.name ?? '',
+    hostname: initialData?.hostname ?? '',
+    providerId: initialData?.provider_id != null ? String(initialData.provider_id) : '',
+    status: initialData?.status ?? 'active',
+    ipV4: initialData?.ip_v4 ?? '',
+    ipV6: initialData?.ip_v6 ?? '',
+    os: initialData?.os ?? '',
+    cpuCores: initialData?.cpu_cores != null ? String(initialData.cpu_cores) : '',
+    ramMb: initialData?.ram_mb != null ? String(initialData.ram_mb) : '',
+    diskGb: initialData?.disk_gb != null ? String(initialData.disk_gb) : '',
+    location: initialData?.location ?? '',
+    datacenter: initialData?.datacenter ?? '',
+    monthlyCost: initialData?.monthly_cost != null ? String(initialData.monthly_cost) : '',
+    costCurrency: initialData?.cost_currency ?? 'EUR',
+    loginUser: initialData?.login_user ?? '',
+    loginNotes: initialData?.login_notes ?? '',
+    notes: initialData?.notes ?? '',
+    documentation: initialData?.documentation ?? '',
+  });
+  useUnsavedChanges(isDirty);
 
   function validateField(name: string, value: string | number | null | undefined) {
     let error = '';
@@ -123,6 +152,7 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
       login_user: loginUser.trim() || null,
       login_notes: loginNotes.trim() || null,
       notes: notes.trim() || null,
+      documentation: documentation.trim() || null,
     };
 
     onSubmit(data);
@@ -303,6 +333,55 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           placeholder="General notes about this server..."
         />
       </fieldset>
+
+      {/* Documentation */}
+      <fieldset>
+        <legend className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Documentation
+        </legend>
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            onClick={() => setShowDocPreview(false)}
+            className={`text-xs px-2 py-1 rounded ${!showDocPreview ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDocPreview(true)}
+            className={`text-xs px-2 py-1 rounded ${showDocPreview ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Preview
+          </button>
+        </div>
+        {showDocPreview ? (
+          <div className="min-h-[200px] rounded-md border border-gray-300 p-4">
+            {documentation.trim() ? (
+              <MarkdownRenderer content={documentation} />
+            ) : (
+              <p className="text-sm text-gray-400 italic">Nothing to preview</p>
+            )}
+          </div>
+        ) : (
+          <Textarea
+            label="Documentation"
+            value={documentation}
+            onChange={(e) => setDocumentation(e.target.value)}
+            placeholder="Runbooks, setup procedures, maintenance notes... (Markdown supported)"
+            rows={8}
+          />
+        )}
+      </fieldset>
+
+      {isDirty && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          You have unsaved changes
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

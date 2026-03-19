@@ -2,12 +2,12 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_connection_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -16,10 +16,6 @@ from app.schemas.ssh_connection import (
 )
 
 router = APIRouter(prefix="/ssh-connections", tags=["ssh-connections"])
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
 
 
 def _conn_to_read(c) -> dict:
@@ -95,11 +91,7 @@ async def update_ssh_connection(request: Request, id: int, data: SshConnectionUp
     if not old:
         raise HTTPException(404, "SSH Connection not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await ssh_connection_crud.update(db, id, update_fields)
     conn_detail = await ssh_connection_crud.get_detail(db, updated.id)
     conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{id}"

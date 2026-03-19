@@ -1,14 +1,31 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.activity import activity_crud
 from app.database import get_db
+from app.limiter import limiter
 from app.schemas.activity import ActivityRead
 
 router = APIRouter(prefix="/activities", tags=["activities"])
+
+
+@router.get("/stats")
+async def get_activity_stats(db: AsyncSession = Depends(get_db)):
+    return await activity_crud.get_stats(db)
+
+
+@router.post("/cleanup", status_code=200)
+@limiter.limit("5/minute")
+async def cleanup_activities(
+    request: Request,
+    retention_days: int = Query(90, ge=7, le=365),
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await activity_crud.delete_older_than(db, retention_days)
+    return {"deleted_count": deleted, "retention_days": retention_days}
 
 
 @router.get("")

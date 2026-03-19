@@ -104,7 +104,7 @@ export default function BackupTable({ backups, onDelete, selectable, selectedIds
 
   return (
     <>
-      <Table columns={columns} data={backups} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
+      <Table columns={columns} data={backups} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} stickyFirstColumn />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Backup"

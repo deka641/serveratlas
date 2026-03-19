@@ -60,6 +60,7 @@ class ServerBase(BaseModel):
     login_user: str | None = None
     login_notes: str | None = None
     notes: str | None = None
+    documentation: str | None = None
 
 
 class ServerCreate(ServerBase):
@@ -84,6 +85,7 @@ class ServerUpdate(BaseModel):
     login_user: str | None = None
     login_notes: str | None = None
     notes: str | None = None
+    documentation: str | None = None
 
     @field_validator('ip_v4')
     @classmethod

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useData } from '@/hooks/useData';
 import { api } from '@/lib/api';
@@ -58,10 +59,29 @@ export default function ReportPage() {
   const { data: backupsResult } = useData(() => api.listBackups({ limit: 500 }));
   const { data: overdueBackups } = useData(() => api.getOverdueBackups());
 
-  const servers = serversResult?.items ?? [];
-  const applications = applicationsResult?.items ?? [];
-  const connections = connectionsResult?.items ?? [];
-  const backups = backupsResult?.items ?? [];
+  const [filterProvider, setFilterProvider] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const allServers = serversResult?.items ?? [];
+  const allApplications = applicationsResult?.items ?? [];
+  const allConnections = connectionsResult?.items ?? [];
+  const allBackups = backupsResult?.items ?? [];
+
+  const servers = allServers.filter((s) => {
+    if (filterProvider && s.provider_name !== filterProvider) return false;
+    if (filterStatus && s.status !== filterStatus) return false;
+    return true;
+  });
+  const filteredServerIds = new Set(servers.map((s) => s.id));
+  const applications = (filterProvider || filterStatus)
+    ? allApplications.filter((a) => filteredServerIds.has(a.server_id))
+    : allApplications;
+  const connections = (filterProvider || filterStatus)
+    ? allConnections.filter((c) => filteredServerIds.has(c.source_server_id) || filteredServerIds.has(c.target_server_id))
+    : allConnections;
+  const backups = (filterProvider || filterStatus)
+    ? allBackups.filter((b) => !b.source_server_id || filteredServerIds.has(b.source_server_id))
+    : allBackups;
 
   // Compute unique servers involved in SSH connections
   const uniqueConnectionServers = new Set<number>();
@@ -165,8 +185,51 @@ export default function ReportPage() {
         <hr className="mt-4 border-gray-200" />
       </div>
 
+      {/* Filters - hidden in print */}
+      <div className="mb-6 flex flex-wrap gap-4" data-no-print>
+        <div className="w-48">
+          <select
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            value={filterProvider}
+            onChange={(e) => setFilterProvider(e.target.value)}
+          >
+            <option value="">All Providers</option>
+            {[...new Set(allServers.map((s) => s.provider_name).filter(Boolean))].map((name) => (
+              <option key={name} value={name!}>{name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-48">
+          <select
+            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="decommissioned">Decommissioned</option>
+          </select>
+        </div>
+        {(filterProvider || filterStatus) && (
+          <button
+            onClick={() => { setFilterProvider(''); setFilterStatus(''); }}
+            className="self-center text-sm text-blue-600 hover:text-blue-800"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {(filterProvider || filterStatus) && (
+        <p className="mb-4 text-sm text-gray-600 italic">
+          Filtered by: {filterProvider ? `Provider: ${filterProvider}` : ''}{filterProvider && filterStatus ? ' | ' : ''}{filterStatus ? `Status: ${filterStatus}` : ''}
+        </p>
+      )}
+
       {/* Executive Summary */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Executive Summary</h2>
         {allClear ? (
           <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3">
@@ -192,7 +255,7 @@ export default function ReportPage() {
       </section>
 
       {/* Summary */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Summary</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="rounded border p-3">
@@ -224,7 +287,7 @@ export default function ReportPage() {
 
       {/* D14: Resource Summary */}
       {servers.length > 0 && (
-        <section className="mb-8">
+        <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Resource Summary</h2>
           <div className="mb-4 grid grid-cols-3 gap-4">
             <div className="rounded border p-3">
@@ -301,7 +364,7 @@ export default function ReportPage() {
       )}
 
       {/* Cost Breakdown */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost Breakdown</h2>
         {costSummary.totals_by_currency.length > 0 ? (
           <div className="mb-4 flex gap-4">
@@ -338,7 +401,7 @@ export default function ReportPage() {
       </section>
 
       {/* Server Inventory */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Server Inventory</h2>
         <table className="w-full text-sm print:text-xs border-collapse">
           <thead>
@@ -401,7 +464,7 @@ export default function ReportPage() {
       </section>
 
       {/* Application Inventory */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Application Inventory</h2>
         {applications.length > 0 ? (
           <table className="w-full text-sm print:text-xs border-collapse">
@@ -434,7 +497,7 @@ export default function ReportPage() {
       </section>
 
       {/* SSH Connection Topology */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">SSH Connection Topology</h2>
         {connections.length > 0 ? (
           <>
@@ -471,7 +534,7 @@ export default function ReportPage() {
       </section>
 
       {/* Tag Distribution */}
-      <section className="mb-8">
+      <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Tag Distribution</h2>
         {tags.length > 0 ? (
           <div className="flex flex-wrap gap-2">
@@ -503,7 +566,7 @@ export default function ReportPage() {
 
       {/* Backup Health */}
       {backupCoverage && (
-        <section className="mb-8">
+        <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Health</h2>
           <p className="text-sm">
             {backupCoverage.covered_applications} of {backupCoverage.total_applications} applications covered.
@@ -528,7 +591,7 @@ export default function ReportPage() {
 
       {/* C13 + D17: Overdue Backups detail section */}
       {overdueBackups && overdueBackups.length > 0 && (
-        <section className="mb-8">
+        <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Overdue Backups</h2>
           <p className="mb-3 text-sm text-red-600 font-medium">
             {overdueBackups.length} backup{overdueBackups.length !== 1 ? 's require' : ' requires'} attention.
@@ -569,7 +632,7 @@ export default function ReportPage() {
 
       {/* Backup Schedule */}
       {backups.length > 0 && (
-        <section className="mb-8">
+        <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Schedule</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
             <thead>
@@ -601,7 +664,7 @@ export default function ReportPage() {
       )}
 
       {/* Print-only footer */}
-      <footer className="hidden print:block mt-12 border-t border-gray-300 pt-4 text-xs text-gray-400">
+      <footer className="hidden print:block print:fixed print:bottom-0 print:left-0 print:right-0 border-t border-gray-300 pt-2 text-xs text-gray-400 bg-white">
         <div className="flex justify-between">
           <span>ServerAtlas Infrastructure Report</span>
           <span>Generated {timestampFull}</span>

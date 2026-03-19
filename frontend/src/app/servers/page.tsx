@@ -17,6 +17,9 @@ import EmptyState from '@/components/ui/EmptyState';
 import ServerTable from '@/components/domain/ServerTable';
 import Pagination from '@/components/ui/Pagination';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import TableSkeleton from '@/components/ui/TableSkeleton';
+import TagPickerModal from '@/components/domain/TagPickerModal';
+import ServerImportModal from '@/components/domain/ServerImportModal';
 import { exportToCsv } from '@/lib/export';
 import type { Server, Tag } from '@/lib/types';
 import { formatCost } from '@/lib/formatters';
@@ -51,6 +54,9 @@ function ServersPageContent() {
   const { addToast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [urlState, setUrlState] = useUrlState({
     status: '',
     provider: '',
@@ -123,16 +129,29 @@ function ServersPageContent() {
   ];
 
   function handleExportCsv() {
-    if (!servers || servers.length === 0) return;
+    if (!servers || servers.length === 0) {
+      addToast('error', 'No data to export');
+      return;
+    }
+    setExporting(true);
     exportToCsv<Server>(servers, serverCsvColumns, 'servers.csv');
+    addToast('success', `Exported ${servers.length} item(s)`);
+    setExporting(false);
   }
 
   async function handleExportAll() {
+    setExporting(true);
     try {
       const result = await api.listServers({ ...params, skip: 0, limit: 500 });
       exportToCsv<Server>(result.items, serverCsvColumns, 'servers-all.csv');
+      addToast('success', `Exported ${result.items.length} item(s)`);
+      if (result.total > 500) {
+        addToast('error', `Warning: Only 500 of ${result.total} items exported. Full export not available.`);
+      }
     } catch {
       addToast('error', 'Failed to export all servers');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -156,7 +175,6 @@ function ServersPageContent() {
   return (
     <PageContainer
       title="Servers"
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -165,10 +183,14 @@ function ServersPageContent() {
             <Button variant="secondary" onClick={handleCompare}>Compare ({selectedIds.size})</Button>
           )}
           {selectedIds.size > 0 && (
+            <Button variant="secondary" onClick={() => setShowTagPicker(true)}>Tag ({selectedIds.size})</Button>
+          )}
+          {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv}>Export CSV</Button>
-          <Button variant="secondary" onClick={handleExportAll}>Export All</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={() => setShowImport(true)}>Import CSV</Button>
           <Link href="/servers/new">
             <Button>Add Server</Button>
           </Link>
@@ -226,7 +248,9 @@ function ServersPageContent() {
         )}
       </div>
 
-      {servers && servers.length === 0 ? (
+      {loading ? (
+        <TableSkeleton columns={9} rows={8} />
+      ) : servers && servers.length === 0 ? (
         <EmptyState
           message="No servers found"
           description={
@@ -255,6 +279,19 @@ function ServersPageContent() {
         confirmLabel="Delete"
         onConfirm={handleBulkDelete}
         onCancel={() => setShowBulkDelete(false)}
+      />
+
+      <TagPickerModal
+        open={showTagPicker}
+        onClose={() => setShowTagPicker(false)}
+        serverIds={Array.from(selectedIds)}
+        onComplete={() => { refetch(); setSelectedIds(new Set()); }}
+      />
+
+      <ServerImportModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onComplete={refetch}
       />
     </PageContainer>
   );

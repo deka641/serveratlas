@@ -2,22 +2,18 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import ssh_key_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.ssh_key import SshKeyCreate, SshKeyRead, SshKeyReadWithServers, SshKeyUpdate
 
 router = APIRouter(prefix="/ssh-keys", tags=["ssh-keys"])
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
 
 
 @router.get("")
@@ -31,15 +27,7 @@ async def list_ssh_keys(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_ssh_keys(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for key_id in body.ids[:100]:
-        key = await ssh_key_crud.get(db, key_id)
-        if key:
-            key_name = key.name
-            await ssh_key_crud.delete(db, key_id)
-            try:
-                await activity_crud.log_activity(db, "ssh_key", key_id, key_name, "deleted")
-            except Exception:
-                logger.warning("Failed to log activity for ssh_key bulk-delete %s", key_id, exc_info=True)
+    await bulk_delete_entities(db, ssh_key_crud, "ssh_key", body.ids)
 
 
 @router.get("/{id}", response_model=SshKeyReadWithServers)
@@ -75,11 +63,7 @@ async def update_ssh_key(request: Request, id: int, data: SshKeyUpdate, db: Asyn
     if not old:
         raise HTTPException(404, "SSH Key not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await ssh_key_crud.update(db, id, update_fields)
     try:
         await activity_crud.log_activity(db, "ssh_key", id, data.name or updated.name, "updated", changes or update_fields)

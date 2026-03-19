@@ -113,6 +113,8 @@ export const api = {
     request<ServerSshKey>(`/servers/${serverId}/ssh-keys/${keyId}`, { method: 'POST', body: JSON.stringify(data || {}) }),
   removeServerSshKey: (serverId: number, keyId: number) =>
     request<void>(`/servers/${serverId}/ssh-keys/${keyId}`, { method: 'DELETE' }),
+  importServers: (data: { servers: Array<{ name: string; hostname?: string; ip_v4?: string; os?: string; provider_name?: string; status?: string; location?: string; [key: string]: unknown }>; skip_duplicates?: boolean }) =>
+    request<{ created: number; skipped: number; errors: string[] }>('/servers/import', { method: 'POST', body: JSON.stringify(data) }),
 
   // SSH Keys
   listSshKeys: (params?: { search?: string; skip?: number; limit?: number }) => {
@@ -207,6 +209,8 @@ export const api = {
   bulkDeleteTags: (ids: number[]) => request<void>('/tags/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   addTagToServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'POST' }),
   removeTagFromServer: (serverId: number, tagId: number) => request<void>(`/tags/servers/${serverId}/tags/${tagId}`, { method: 'DELETE' }),
+  batchAssignTags: (data: { server_ids: number[]; tag_ids: number[]; action: 'assign' | 'unassign' }) =>
+    request<{ status: string; count: number }>('/tags/batch-assign', { method: 'POST', body: JSON.stringify(data) }),
 
   // Activities
   listActivities: (params?: { entity_type?: string; entity_id?: number; action?: string; search?: string; date_from?: string; date_to?: string; skip?: number; limit?: number }) => {
@@ -222,6 +226,9 @@ export const api = {
     const q = qs.toString();
     return requestPaginated<Activity>(`/activities${q ? '?' + q : ''}`);
   },
+  getActivityStats: () => request<{ total_count: number; oldest_entry: string | null }>('/activities/stats'),
+  cleanupActivities: (retentionDays: number) =>
+    request<{ deleted_count: number; retention_days: number }>(`/activities/cleanup?retention_days=${retentionDays}`, { method: 'POST' }),
 
   // Server health check
   updateServerHealthCheck: (id: number, data: { status: string; response_time_ms?: number }) =>

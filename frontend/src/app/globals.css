@@ -68,6 +68,9 @@
   table { font-size: 10pt; }
   body { font-size: 11pt; }
 
+  section.report-section + section.report-section { break-before: page; }
+  .print-keep-together { break-inside: avoid; }
+
   /* Preserve colors for health dots and badges in print */
   .print-color-exact { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .bg-green-500, .bg-red-500, .bg-gray-300, .bg-amber-500 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }

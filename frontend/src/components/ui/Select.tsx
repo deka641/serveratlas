@@ -1,6 +1,6 @@
 'use client';
 
-import { SelectHTMLAttributes, forwardRef } from 'react';
+import { SelectHTMLAttributes, forwardRef, useId } from 'react';
 
 interface SelectOption {
   value: string;
@@ -16,7 +16,9 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, options, error, placeholder, className = '', id, ...rest }, ref) => {
-    const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+    const generatedId = useId();
+    const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : generatedId);
+    const errorId = `${selectId}-error`;
 
     return (
       <div className="w-full">
@@ -37,6 +39,8 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
               ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
               : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
           } disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 ${className}`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           {...rest}
         >
           {placeholder && (
@@ -50,7 +54,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
-        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+        {error && <p id={errorId} role="alert" className="mt-1 text-sm text-red-600">{error}</p>}
       </div>
     );
   }

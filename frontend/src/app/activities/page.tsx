@@ -16,7 +16,9 @@ import Input from '@/components/ui/Input';
 import EmptyState from '@/components/ui/EmptyState';
 import Pagination from '@/components/ui/Pagination';
 import Table, { Column } from '@/components/ui/Table';
+import TableSkeleton from '@/components/ui/TableSkeleton';
 import ChangesSummary from '@/components/domain/ChangesSummary';
+import { useToast } from '@/components/ui/Toast';
 
 const PAGE_SIZE = 50;
 
@@ -94,6 +96,13 @@ const activityCsvColumns = [
 ];
 
 function ActivitiesPageContent() {
+  const { addToast } = useToast();
+  const [activityStats, setActivityStats] = useState<{ total_count: number; oldest_entry: string | null } | null>(null);
+  const [showCleanup, setShowCleanup] = useState(false);
+  const [cleanupDays, setCleanupDays] = useState('90');
+  const [cleaning, setCleaning] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   const [urlState, setUrlState] = useUrlState({
     entity_type: '',
     action: '',
@@ -132,6 +141,25 @@ function ActivitiesPageContent() {
   const activities = data?.items ?? null;
   const total = data?.total ?? 0;
 
+  useEffect(() => {
+    api.getActivityStats().then(setActivityStats).catch(() => {});
+  }, []);
+
+  async function handleCleanup() {
+    setCleaning(true);
+    try {
+      const result = await api.cleanupActivities(Number(cleanupDays));
+      addToast('success', `Cleaned up ${result.deleted_count} old activities`);
+      setShowCleanup(false);
+      refetch();
+      api.getActivityStats().then(setActivityStats).catch(() => {});
+    } catch {
+      addToast('error', 'Failed to cleanup activities');
+    } finally {
+      setCleaning(false);
+    }
+  }
+
   const hasActiveFilters = !!(urlState.entity_type || urlState.action || search || urlState.date_from || urlState.date_to);
 
   function handleClearFilters() {
@@ -140,16 +168,29 @@ function ActivitiesPageContent() {
   }
 
   function handleExportCsv() {
-    if (!activities || activities.length === 0) return;
+    if (!activities || activities.length === 0) {
+      addToast('error', 'No data to export');
+      return;
+    }
+    setExporting(true);
     exportToCsv<Activity>(activities, activityCsvColumns, 'activities.csv');
+    addToast('success', `Exported ${activities.length} item(s)`);
+    setExporting(false);
   }
 
   async function handleExportAll() {
+    setExporting(true);
     try {
       const result = await api.listActivities({ ...params, skip: 0, limit: 500 });
       exportToCsv<Activity>(result.items, activityCsvColumns, 'activities-all.csv');
+      addToast('success', `Exported ${result.items.length} item(s)`);
+      if (result.total > 500) {
+        addToast('error', `Warning: Only 500 of ${result.total} items exported. Full export not available.`);
+      }
     } catch {
-      // silently fail
+      addToast('error', 'Failed to export activities');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -201,13 +242,13 @@ function ActivitiesPageContent() {
   return (
     <PageContainer
       title="Activities"
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
         <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={handleExportCsv}>Export CSV</Button>
-          <Button variant="secondary" onClick={handleExportAll}>Export All</Button>
+          <Button variant="secondary" onClick={() => setShowCleanup(!showCleanup)}>Manage</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
         </div>
       }
     >
@@ -261,7 +302,45 @@ function ActivitiesPageContent() {
         )}
       </div>
 
-      {activities && activities.length === 0 ? (
+      {showCleanup && activityStats && (
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Activity Log Management</h3>
+          <div className="mb-3 flex gap-6 text-sm">
+            <div>
+              <span className="text-gray-500">Total Activities:</span>{' '}
+              <span className="font-medium">{activityStats.total_count.toLocaleString()}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Oldest Entry:</span>{' '}
+              <span className="font-medium">{activityStats.oldest_entry ? formatDateTime(activityStats.oldest_entry) : 'N/A'}</span>
+            </div>
+          </div>
+          <div className="flex items-end gap-3">
+            <div className="w-40">
+              <Select
+                label="Delete older than"
+                value={cleanupDays}
+                onChange={(e) => setCleanupDays(e.target.value)}
+                options={[
+                  { value: '90', label: '90 days' },
+                  { value: '180', label: '180 days' },
+                  { value: '365', label: '365 days' },
+                ]}
+              />
+            </div>
+            <Button variant="danger" onClick={handleCleanup} disabled={cleaning}>
+              {cleaning ? 'Cleaning...' : 'Cleanup'}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowCleanup(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <TableSkeleton columns={5} rows={8} />
+      ) : activities && activities.length === 0 ? (
         <EmptyState
           message="No activities found"
           description={

@@ -12,6 +12,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import SshKeyTable from '@/components/domain/SshKeyTable';
 import Pagination from '@/components/ui/Pagination';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import TableSkeleton from '@/components/ui/TableSkeleton';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useUrlState } from '@/hooks/useUrlState';
 import { exportToCsv } from '@/lib/export';
@@ -34,6 +35,7 @@ function SshKeysPageContent() {
   const [searchTerm, setSearchTerm] = useState(urlState.search);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 300);
   const page = Number(urlState.page) || 0;
 
@@ -60,16 +62,29 @@ function SshKeysPageContent() {
   };
 
   function handleExportCsv() {
-    if (!keys || keys.length === 0) return;
+    if (!keys || keys.length === 0) {
+      addToast('error', 'No data to export');
+      return;
+    }
+    setExporting(true);
     exportToCsv<SshKey>(keys, sshKeyCsvColumns, 'ssh-keys.csv');
+    addToast('success', `Exported ${keys.length} item(s)`);
+    setExporting(false);
   }
 
   async function handleExportAll() {
+    setExporting(true);
     try {
       const result = await api.listSshKeys({ ...params, skip: 0, limit: 500 });
       exportToCsv<SshKey>(result.items, sshKeyCsvColumns, 'ssh-keys-all.csv');
+      addToast('success', `Exported ${result.items.length} item(s)`);
+      if (result.total > 500) {
+        addToast('error', `Warning: Only 500 of ${result.total} items exported. Full export not available.`);
+      }
     } catch {
       addToast('error', 'Failed to export all SSH keys');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -88,7 +103,6 @@ function SshKeysPageContent() {
   return (
     <PageContainer
       title="SSH Keys"
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -96,8 +110,8 @@ function SshKeysPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv}>Export CSV</Button>
-          <Button variant="secondary" onClick={handleExportAll}>Export All</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
           <Link href="/ssh-keys/new">
             <Button>Add SSH Key</Button>
           </Link>
@@ -128,17 +142,19 @@ function SshKeysPageContent() {
           </Button>
         )}
       </div>
-      {keys && keys.length > 0 ? (
+      {loading ? (
+        <TableSkeleton columns={4} rows={8} />
+      ) : keys && keys.length > 0 ? (
         <>
           <SshKeyTable keys={keys} onDelete={handleDelete} selectable selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={(p) => setUrlState({ page: String(p) })} />
         </>
-      ) : !loading ? (
+      ) : (
         <EmptyState
           message={searchTerm ? 'No SSH keys match your search' : 'No SSH keys found'}
           description={searchTerm ? 'Try a different search term.' : 'Get started by adding your first SSH key.'}
         />
-      ) : null}
+      )}
 
       <ConfirmDialog
         open={showBulkDelete}

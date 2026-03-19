@@ -47,5 +47,10 @@ class ProviderCRUD(CRUDBase[Provider]):
         result = await db.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_name(self, db: AsyncSession, name: str) -> Provider | None:
+        stmt = select(Provider).where(Provider.name == name)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
 
 provider_crud = ProviderCRUD(Provider)

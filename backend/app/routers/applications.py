@@ -2,22 +2,18 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.application import ApplicationCreate, ApplicationRead, ApplicationUpdate
 
 router = APIRouter(prefix="/applications", tags=["applications"])
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
 
 
 @router.get("")
@@ -41,15 +37,7 @@ async def list_applications(
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_applications(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for app_id in body.ids[:100]:
-        app = await application_crud.get(db, app_id)
-        if app:
-            app_name = app.name
-            await application_crud.delete(db, app_id)
-            try:
-                await activity_crud.log_activity(db, "application", app_id, app_name, "deleted")
-            except Exception:
-                logger.warning("Failed to log activity for application bulk-delete %s", app_id, exc_info=True)
+    await bulk_delete_entities(db, application_crud, "application", body.ids)
 
 
 @router.get("/{id}", response_model=ApplicationRead)
@@ -86,13 +74,7 @@ async def update_application(request: Request, id: int, data: ApplicationUpdate,
     if not old:
         raise HTTPException(404, "Application not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if hasattr(old_val, 'value'):
-            old_val = old_val.value
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await application_crud.update(db, id, update_fields)
     app = await application_crud.get_detail(db, updated.id)
     try:

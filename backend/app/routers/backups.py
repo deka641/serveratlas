@@ -2,22 +2,18 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import backup_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.backup import BackupCreate, BackupRead, BackupUpdate
 
 router = APIRouter(prefix="/backups", tags=["backups"])
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
 
 
 def _backup_to_read(b) -> dict:
@@ -60,15 +56,7 @@ async def list_backups(
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_backups(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for backup_id in body.ids[:100]:
-        backup = await backup_crud.get(db, backup_id)
-        if backup:
-            backup_name = backup.name
-            await backup_crud.delete(db, backup_id)
-            try:
-                await activity_crud.log_activity(db, "backup", backup_id, backup_name, "deleted")
-            except Exception:
-                logger.warning("Failed to log activity for backup bulk-delete %s", backup_id, exc_info=True)
+    await bulk_delete_entities(db, backup_crud, "backup", body.ids)
 
 
 @router.get("/{id}", response_model=BackupRead)
@@ -98,13 +86,7 @@ async def update_backup(request: Request, id: int, data: BackupUpdate, db: Async
     if not old:
         raise HTTPException(404, "Backup not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if hasattr(old_val, 'value'):
-            old_val = old_val.value
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await backup_crud.update(db, id, update_fields)
     detail = await backup_crud.get_detail(db, updated.id)
     try:

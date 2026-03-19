@@ -93,7 +93,7 @@ export default function ApplicationTable({ applications, onDelete, selectable, s
 
   return (
     <>
-      <Table columns={columns} data={applications} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} />
+      <Table columns={columns} data={applications} selectable={selectable} selectedIds={selectedIds} onSelectionChange={onSelectionChange} stickyFirstColumn />
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Application"

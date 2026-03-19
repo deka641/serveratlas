@@ -9,6 +9,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import ProviderTable from '@/components/domain/ProviderTable';
 import Pagination from '@/components/ui/Pagination';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import TableSkeleton from '@/components/ui/TableSkeleton';
 import { useProviders } from '@/hooks/useProviders';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useUrlState } from '@/hooks/useUrlState';
@@ -34,6 +35,7 @@ function ProvidersPageContent() {
   const [searchTerm, setSearchTerm] = useState(urlState.search);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 300);
   const page = Number(urlState.page) || 0;
   const { addToast } = useToast();
@@ -50,16 +52,29 @@ function ProvidersPageContent() {
   const { data: providers, total, loading, error, refetch } = useProviders(params);
 
   function handleExportCsv() {
-    if (!providers || providers.length === 0) return;
+    if (!providers || providers.length === 0) {
+      addToast('error', 'No data to export');
+      return;
+    }
+    setExporting(true);
     exportToCsv<Provider>(providers, providerCsvColumns, 'providers.csv');
+    addToast('success', `Exported ${providers.length} item(s)`);
+    setExporting(false);
   }
 
   async function handleExportAll() {
+    setExporting(true);
     try {
       const result = await api.listProviders({ ...params, skip: 0, limit: 500 });
       exportToCsv<Provider>(result.items, providerCsvColumns, 'providers-all.csv');
+      addToast('success', `Exported ${result.items.length} item(s)`);
+      if (result.total > 500) {
+        addToast('error', `Warning: Only 500 of ${result.total} items exported. Full export not available.`);
+      }
     } catch {
       addToast('error', 'Failed to export all providers');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -78,7 +93,6 @@ function ProvidersPageContent() {
   return (
     <PageContainer
       title="Providers"
-      loading={loading}
       error={error}
       onRetry={refetch}
       action={
@@ -86,8 +100,8 @@ function ProvidersPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv}>Export CSV</Button>
-          <Button variant="secondary" onClick={handleExportAll}>Export All</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
           <Link href="/providers/new">
             <Button>Add Provider</Button>
           </Link>
@@ -118,12 +132,14 @@ function ProvidersPageContent() {
           </Button>
         )}
       </div>
-      {providers && providers.length > 0 ? (
+      {loading ? (
+        <TableSkeleton columns={4} rows={8} />
+      ) : providers && providers.length > 0 ? (
         <>
           <ProviderTable providers={providers} onDelete={refetch} selectable selectedIds={selectedIds} onSelectionChange={setSelectedIds} />
           <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={(p) => setUrlState({ page: String(p) })} />
         </>
-      ) : !loading ? (
+      ) : (
         <EmptyState
           message={searchTerm ? 'No providers match your search' : 'No providers yet'}
           description={searchTerm ? 'Try a different search term.' : 'Get started by adding your first provider.'}
@@ -132,7 +148,7 @@ function ProvidersPageContent() {
             window.location.href = '/providers/new';
           }}
         />
-      ) : null}
+      )}
 
       <ConfirmDialog
         open={showBulkDelete}

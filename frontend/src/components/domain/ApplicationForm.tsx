@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Application, AppStatus } from '@/lib/types';
 import { useServers } from '@/hooks/useServers';
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
@@ -40,6 +41,19 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
   const [notes, setNotes] = useState(initialData?.notes || '');
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const isDirty = JSON.stringify({ name, serverId, appType, port, status, url, configNotes, notes }) !==
+    JSON.stringify({
+      name: initialData?.name || '',
+      serverId: initialData?.server_id ? String(initialData.server_id) : '',
+      appType: initialData?.app_type || '',
+      port: initialData?.port !== null && initialData?.port !== undefined ? String(initialData.port) : '',
+      status: initialData?.status || 'running',
+      url: initialData?.url || '',
+      configNotes: initialData?.config_notes || '',
+      notes: initialData?.notes || '',
+    });
+  useUnsavedChanges(isDirty);
 
   function validateField(fieldName: string, value: string | number | null | undefined) {
     let error = '';
@@ -187,6 +201,15 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         placeholder="Additional notes..."
         rows={3}
       />
+
+      {isDirty && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          You have unsaved changes
+        </div>
+      )}
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

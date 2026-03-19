@@ -22,6 +22,7 @@ interface TableProps<T> {
   selectable?: boolean;
   selectedIds?: Set<number>;
   onSelectionChange?: (ids: Set<number>) => void;
+  stickyFirstColumn?: boolean;
 }
 
 export default function Table<T extends object>({
@@ -35,6 +36,7 @@ export default function Table<T extends object>({
   selectable,
   selectedIds,
   onSelectionChange,
+  stickyFirstColumn,
 }: TableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -57,7 +59,6 @@ export default function Table<T extends object>({
     return [...data].sort((a, b) => {
       const aVal = (a as Record<string, unknown>)[sortColumn];
       const bVal = (b as Record<string, unknown>)[sortColumn];
-      // Null/undefined always last
       if (aVal == null && bVal == null) return 0;
       if (aVal == null) return 1;
       if (bVal == null) return -1;
@@ -88,12 +89,15 @@ export default function Table<T extends object>({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const check = () => {
-      setCanScrollRight(el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+      const hasOverflow = el.scrollWidth > el.clientWidth;
+      setCanScrollRight(hasOverflow && el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+      setCanScrollLeft(hasOverflow && el.scrollLeft > 1);
     };
     check();
     el.addEventListener('scroll', check);
@@ -102,8 +106,14 @@ export default function Table<T extends object>({
     return () => { el.removeEventListener('scroll', check); observer.disconnect(); };
   }, [data]);
 
+  const stickyClass = stickyFirstColumn ? 'sticky left-0 z-10 bg-white' : '';
+  const stickyHeaderClass = stickyFirstColumn ? 'sticky left-0 z-20 bg-gray-50' : '';
+
   return (
     <div className={`relative w-full ${className}`}>
+      {canScrollLeft && (
+        <div className="pointer-events-none absolute left-0 top-0 h-full w-8 z-30 bg-gradient-to-r from-white to-transparent" />
+      )}
       <div ref={scrollRef} className="w-full overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
           <thead>
@@ -127,12 +137,12 @@ export default function Table<T extends object>({
                   />
                 </th>
               )}
-              {columns.map((col) => (
+              {columns.map((col, colIdx) => (
                 <th
                   key={col.key}
                   className={`px-4 py-3 font-medium text-gray-700 ${
                     col.sortable ? 'cursor-pointer select-none hover:bg-gray-100' : ''
-                  }`}
+                  } ${colIdx === 0 ? stickyHeaderClass : ''}`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
                   <span className="inline-flex items-center gap-1">
@@ -192,8 +202,11 @@ export default function Table<T extends object>({
                     />
                   </td>
                 )}
-                {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-3 text-gray-700">
+                {columns.map((col, colIdx) => (
+                  <td
+                    key={col.key}
+                    className={`px-4 py-3 text-gray-700 ${colIdx === 0 ? stickyClass : ''}`}
+                  >
                     {col.render
                       ? col.render(item)
                       : getCellValue(item, col.key)}

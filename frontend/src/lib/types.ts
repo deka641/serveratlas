@@ -45,6 +45,7 @@ export interface Server {
   login_user: string | null;
   login_notes: string | null;
   notes: string | null;
+  documentation: string | null;
   last_checked_at: string | null;
   last_check_status: string | null;
   response_time_ms: number | null;

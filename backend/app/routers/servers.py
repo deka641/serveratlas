@@ -1,4 +1,8 @@
+import asyncio
 import logging
+import socket
+import time
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -8,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import application_crud, server_crud, ssh_connection_crud, ssh_key_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -19,10 +24,6 @@ from app.schemas.ssh_connection import SshConnectionRead
 router = APIRouter(prefix="/servers", tags=["servers"])
 
 
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
-
-
 def _server_to_read(server) -> dict:
     d = {
         "id": server.id, "name": server.name, "provider_id": server.provider_id,
@@ -32,7 +33,7 @@ def _server_to_read(server) -> dict:
         "status": server.status.value if server.status else "active",
         "monthly_cost": server.monthly_cost, "cost_currency": server.cost_currency,
         "login_user": server.login_user, "login_notes": server.login_notes,
-        "notes": server.notes,
+        "notes": server.notes, "documentation": server.documentation,
         "last_checked_at": server.last_checked_at, "last_check_status": server.last_check_status,
         "response_time_ms": server.response_time_ms,
         "created_at": server.created_at, "updated_at": server.updated_at,
@@ -61,15 +62,96 @@ async def list_servers(
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_servers(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for server_id in body.ids[:100]:
-        server = await server_crud.get(db, server_id)
-        if server:
-            server_name = server.name
-            await server_crud.delete(db, server_id)
+    await bulk_delete_entities(db, server_crud, "server", body.ids)
+
+
+class ServerImportItem(BaseModel):
+    name: str
+    hostname: str | None = None
+    ip_v4: str | None = None
+    ip_v6: str | None = None
+    os: str | None = None
+    cpu_cores: int | None = None
+    ram_mb: int | None = None
+    disk_gb: int | None = None
+    location: str | None = None
+    datacenter: str | None = None
+    status: str = "active"
+    monthly_cost: float | None = None
+    cost_currency: str | None = "EUR"
+    provider_name: str | None = None
+    login_user: str | None = None
+    notes: str | None = None
+
+
+class ServerImportRequest(BaseModel):
+    servers: list[ServerImportItem]
+    skip_duplicates: bool = True
+
+
+class ImportResult(BaseModel):
+    created: int = 0
+    skipped: int = 0
+    errors: list[str] = []
+
+
+@router.post("/import", response_model=ImportResult, status_code=200)
+@limiter.limit("10/minute")
+async def import_servers(request: Request, body: ServerImportRequest, db: AsyncSession = Depends(get_db)):
+    if len(body.servers) > 200:
+        raise HTTPException(400, "Maximum 200 servers per import")
+
+    result = ImportResult()
+    for item in body.servers:
+        try:
+            # Check for duplicates
+            from sqlalchemy import select as sql_select
+            from app.models.server import Server as ServerModel
+            existing_stmt = sql_select(ServerModel).where(ServerModel.name == item.name)
+            existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+            if existing:
+                if body.skip_duplicates:
+                    result.skipped += 1
+                    continue
+                else:
+                    result.errors.append(f"Server '{item.name}' already exists")
+                    continue
+
+            # Resolve provider by name
+            provider_id = None
+            if item.provider_name:
+                from app.crud.provider import provider_crud as prov_crud
+                provider = await prov_crud.get_by_name(db, item.provider_name)
+                if provider:
+                    provider_id = provider.id
+
+            server_data = {
+                "name": item.name,
+                "hostname": item.hostname,
+                "ip_v4": item.ip_v4,
+                "ip_v6": item.ip_v6,
+                "os": item.os,
+                "cpu_cores": item.cpu_cores,
+                "ram_mb": item.ram_mb,
+                "disk_gb": item.disk_gb,
+                "location": item.location,
+                "datacenter": item.datacenter,
+                "status": item.status,
+                "monthly_cost": item.monthly_cost,
+                "cost_currency": item.cost_currency,
+                "provider_id": provider_id,
+                "login_user": item.login_user,
+                "notes": item.notes,
+            }
+            created = await server_crud.create(db, server_data)
             try:
-                await activity_crud.log_activity(db, "server", server_id, server_name, "deleted")
+                await activity_crud.log_activity(db, "server", created.id, item.name, "created")
             except Exception:
-                logger.warning("Failed to log activity for server bulk-delete %s", server_id, exc_info=True)
+                logger.warning("Failed to log activity for imported server %s", item.name, exc_info=True)
+            result.created += 1
+        except Exception as e:
+            result.errors.append(f"Error importing '{item.name}': {str(e)}")
+    return result
 
 
 @router.get("/{id}", response_model=ServerReadDetail)
@@ -110,13 +192,7 @@ async def update_server(request: Request, id: int, data: ServerUpdate, db: Async
     if not old:
         raise HTTPException(404, "Server not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if hasattr(old_val, 'value'):
-            old_val = old_val.value
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await server_crud.update(db, id, update_fields)
     server = await server_crud.get_with_provider(db, updated.id)
     try:
@@ -203,7 +279,6 @@ async def remove_server_ssh_key(id: int, key_id: int, db: AsyncSession = Depends
 @router.post("/{id}/health-check", response_model=ServerRead)
 @limiter.limit("30/minute")
 async def update_health_check(request: Request, id: int, data: HealthCheckUpdate, db: AsyncSession = Depends(get_db)):
-    from datetime import datetime
     server = await server_crud.get(db, id)
     if not server:
         raise HTTPException(404, "Server not found")
@@ -220,11 +295,6 @@ async def update_health_check(request: Request, id: int, data: HealthCheckUpdate
 @router.post("/{id}/run-health-check", response_model=ServerRead)
 @limiter.limit("30/minute")
 async def run_health_check(request: Request, id: int, db: AsyncSession = Depends(get_db)):
-    import asyncio
-    import socket
-    import time
-    from datetime import datetime
-
     server = await server_crud.get(db, id)
     if not server:
         raise HTTPException(404, "Server not found")
@@ -237,18 +307,19 @@ async def run_health_check(request: Request, id: int, db: AsyncSession = Depends
     status = "unhealthy"
     response_time_ms = None
 
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         start = time.monotonic()
         loop = asyncio.get_event_loop()
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
         await loop.run_in_executor(None, sock.connect, (host, port))
         elapsed = time.monotonic() - start
         response_time_ms = int(elapsed * 1000)
         status = "healthy"
-        sock.close()
     except (OSError, socket.timeout, ConnectionRefusedError):
         status = "unhealthy"
+    finally:
+        sock.close()
 
     update_data = {
         "last_checked_at": datetime.utcnow(),

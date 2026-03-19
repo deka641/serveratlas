@@ -33,6 +33,7 @@ export default function ConnectivityPage() {
     const sourceCanvas = mapContainerRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
     if (!sourceCanvas) return;
 
+    const scale = 2;
     const pad = 40;
     const headerHeight = 60;
     const legendHeight = 50;
@@ -41,14 +42,21 @@ export default function ConnectivityPage() {
     const totalWidth = Math.max(sourceCanvas.width + pad * 2, 600);
 
     const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = totalWidth;
-    exportCanvas.height = totalHeight;
+    exportCanvas.width = totalWidth * scale;
+    exportCanvas.height = totalHeight * scale;
     const ctx = exportCanvas.getContext('2d');
     if (!ctx) return;
+
+    ctx.scale(scale, scale);
 
     // Background
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+    // Border
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, totalWidth - 1, totalHeight - 1);
 
     // Title
     ctx.fillStyle = '#1e293b';
@@ -113,6 +121,61 @@ export default function ConnectivityPage() {
     document.body.removeChild(link);
   }
 
+  function handleExportSvg() {
+    if (!graph || graph.nodes.length === 0) return;
+    const width = 800;
+    const height = 600;
+    const nodeRadius = 20;
+
+    // Simple circular layout
+    const nodePositions = graph.nodes.map((node, i) => {
+      const angle = (2 * Math.PI * i) / graph.nodes.length;
+      const cx = width / 2 + (width / 3) * Math.cos(angle);
+      const cy = height / 2 + (height / 3) * Math.sin(angle);
+      return { ...node, cx, cy };
+    });
+
+    const nodeMap = new Map(nodePositions.map(n => [n.id, n]));
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">\n`;
+    svg += `<rect width="${width}" height="${height}" fill="white" stroke="#e5e7eb"/>\n`;
+    svg += `<text x="${width/2}" y="30" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">ServerAtlas - Connectivity Map</text>\n`;
+
+    // Arrow marker
+    svg += `<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1"/></marker></defs>\n`;
+
+    // Draw edges
+    for (const edge of graph.edges) {
+      const source = nodeMap.get(edge.source);
+      const target = nodeMap.get(edge.target);
+      if (source && target) {
+        svg += `<line x1="${source.cx}" y1="${source.cy}" x2="${target.cx}" y2="${target.cy}" stroke="#cbd5e1" stroke-width="1.5" marker-end="url(#arrow)"/>\n`;
+      }
+    }
+
+    // Draw nodes
+    for (const node of nodePositions) {
+      const color: Record<string, string> = {active: '#22c55e', inactive: '#9ca3af', maintenance: '#f97316', decommissioned: '#ef4444'};
+      const fill = color[node.status] || '#9ca3af';
+      svg += `<circle cx="${node.cx}" cy="${node.cy}" r="${nodeRadius}" fill="${fill}" stroke="white" stroke-width="2"/>\n`;
+      svg += `<text x="${node.cx}" y="${node.cy + nodeRadius + 14}" text-anchor="middle" font-size="11" fill="#1f2937">${node.name}</text>\n`;
+    }
+
+    svg += `</svg>`;
+
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const now = new Date();
+    link.download = `connectivity-map-${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}.svg`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   const hasData = graph && graph.nodes.length > 0;
 
   return (
@@ -128,6 +191,9 @@ export default function ConnectivityPage() {
           </div>
           <Button variant="secondary" onClick={handleExportPng}>
             Export PNG
+          </Button>
+          <Button variant="secondary" onClick={handleExportSvg}>
+            Export SVG
           </Button>
         </div>
 

@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -9,15 +10,12 @@ from app.crud.tag import tag_crud
 from app.crud.activity import activity_crud
 from app.database import get_db
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 from app.schemas.tag import TagCreate, TagRead, TagUpdate
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tags", tags=["tags"])
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
 
 
 @router.get("")
@@ -36,15 +34,45 @@ async def list_tags(
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_tags(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for tag_id in body.ids[:100]:
-        tag = await tag_crud.get(db, tag_id)
-        if tag:
-            tag_name = tag.name
-            await tag_crud.delete(db, tag_id)
+    await bulk_delete_entities(db, tag_crud, "tag", body.ids)
+
+
+class BatchTagRequest(BaseModel):
+    server_ids: list[int]
+    tag_ids: list[int]
+    action: Literal["assign", "unassign"]
+
+
+@router.post("/batch-assign", status_code=200)
+@limiter.limit("30/minute")
+async def batch_assign_tags(request: Request, body: BatchTagRequest, db: AsyncSession = Depends(get_db)):
+    if len(body.server_ids) > 100:
+        raise HTTPException(400, "Maximum 100 servers per request")
+    if len(body.tag_ids) > 50:
+        raise HTTPException(400, "Maximum 50 tags per request")
+
+    count = 0
+    for server_id in body.server_ids:
+        for tag_id in body.tag_ids:
             try:
-                await activity_crud.log_activity(db, "tag", tag_id, tag_name, "deleted")
+                if body.action == "assign":
+                    await tag_crud.add_tag_to_server(db, server_id, tag_id)
+                else:
+                    await tag_crud.remove_tag_from_server(db, server_id, tag_id)
+                count += 1
+                tag = await tag_crud.get(db, tag_id)
+                tag_name = tag.name if tag else f"Tag #{tag_id}"
+                try:
+                    await activity_crud.log_activity(
+                        db, "tag", tag_id, tag_name,
+                        "assigned" if body.action == "assign" else "unassigned",
+                        {"server_id": str(server_id)}
+                    )
+                except Exception:
+                    logger.warning("Failed to log activity for batch tag %s", tag_id, exc_info=True)
             except Exception:
-                logger.warning("Failed to log activity for tag bulk-delete %s", tag_id, exc_info=True)
+                continue
+    return {"status": "ok", "count": count}
 
 
 @router.get("/{id}", response_model=TagRead)
@@ -73,11 +101,7 @@ async def update_tag(request: Request, id: int, data: TagUpdate, db: AsyncSessio
     if not old:
         raise HTTPException(404, "Tag not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await tag_crud.update(db, id, update_fields)
     try:
         await activity_crud.log_activity(db, "tag", id, updated.name, "updated", changes or update_fields)

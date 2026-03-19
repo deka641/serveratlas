@@ -2,12 +2,12 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import provider_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -15,10 +15,6 @@ from app.schemas.provider import ProviderCreate, ProviderRead, ProviderReadWithS
 from app.schemas.server import ServerRead
 
 router = APIRouter(prefix="/providers", tags=["providers"])
-
-
-class BulkDeleteRequest(BaseModel):
-    ids: list[int]
 
 
 @router.get("")
@@ -37,15 +33,7 @@ async def list_providers(skip: int = Query(0, ge=0), limit: int = Query(100, ge=
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_providers(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for provider_id in body.ids[:100]:
-        provider = await provider_crud.get(db, provider_id)
-        if provider:
-            provider_name = provider.name
-            await provider_crud.delete(db, provider_id)
-            try:
-                await activity_crud.log_activity(db, "provider", provider_id, provider_name, "deleted")
-            except Exception:
-                logger.warning("Failed to log activity for provider bulk-delete %s", provider_id, exc_info=True)
+    await bulk_delete_entities(db, provider_crud, "provider", body.ids)
 
 
 @router.get("/{id}", response_model=ProviderRead)
@@ -74,11 +62,7 @@ async def update_provider(request: Request, id: int, data: ProviderUpdate, db: A
     if not old:
         raise HTTPException(404, "Provider not found")
     update_fields = data.model_dump(exclude_unset=True)
-    changes = {}
-    for key, new_val in update_fields.items():
-        old_val = getattr(old, key, None)
-        if str(old_val) != str(new_val):
-            changes[key] = {"old": str(old_val), "new": str(new_val)}
+    changes = compute_changes(old, update_fields)
     updated = await provider_crud.update(db, id, update_fields)
     try:
         await activity_crud.log_activity(db, "provider", id, data.name or updated.name, "updated", changes or update_fields)

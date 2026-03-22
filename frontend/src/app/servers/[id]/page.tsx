@@ -936,7 +936,11 @@ export default function ServerDetailPage() {
           <ConfirmDialog
             open={showDeleteDialog}
             title="Delete Server"
-            message={`Are you sure you want to delete "${server.name}"? This will also remove associated applications, SSH key assignments, and connections.`}
+            message={`Are you sure you want to delete "${server.name}"? This action cannot be undone.${
+              (server.applications?.length || (backups && backups.length))
+                ? `\n\nThis will also delete:\n${server.applications?.length ? `• ${server.applications.length} application(s)` : ''}${server.applications?.length && backups?.length ? '\n' : ''}${backups?.length ? `• ${backups.length} backup(s)` : ''}`
+                : ''
+            }`}
             confirmLabel="Delete"
             onConfirm={handleDelete}
             onCancel={() => setShowDeleteDialog(false)}

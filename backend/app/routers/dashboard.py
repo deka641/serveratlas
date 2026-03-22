@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import dashboard_crud
 from app.database import get_db
-from app.schemas.dashboard import BackupCoverage, CostSummary, DashboardStats, OverdueBackup, RecentBackup
+from app.schemas.dashboard import BackupCoverage, CostByTag, CostSummary, DashboardStats, HealthSummary, OverdueBackup, RecentBackup
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -45,3 +45,18 @@ async def get_overdue_backups(db: AsyncSession = Depends(get_db)):
         content=[o.model_dump(mode="json") for o in overdue],
         headers=CACHE_HEADERS,
     )
+
+
+@router.get("/cost-by-tag", response_model=list[CostByTag])
+async def get_cost_by_tag(db: AsyncSession = Depends(get_db)):
+    data = await dashboard_crud.get_cost_by_tag(db)
+    return JSONResponse(
+        content=[d.model_dump(mode="json") for d in data],
+        headers=CACHE_HEADERS,
+    )
+
+
+@router.get("/health-summary", response_model=HealthSummary)
+async def get_health_summary(db: AsyncSession = Depends(get_db)):
+    summary = await dashboard_crud.get_health_summary(db)
+    return JSONResponse(content=summary.model_dump(mode="json"), headers=CACHE_HEADERS)

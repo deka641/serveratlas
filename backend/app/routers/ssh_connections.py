@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.crud import ssh_connection_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
-from app.routers.utils import BulkDeleteRequest, compute_changes
+from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -47,15 +47,14 @@ async def list_ssh_connections(skip: int = Query(0, ge=0), limit: int = Query(10
 @router.post("/bulk-delete", status_code=204)
 @limiter.limit("30/minute")
 async def bulk_delete_ssh_connections(request: Request, body: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
-    for conn_id in body.ids[:100]:
-        conn_detail = await ssh_connection_crud.get_detail(db, conn_id)
-        if conn_detail:
-            conn_name = f"{conn_detail.source_server.name} -> {conn_detail.target_server.name}" if conn_detail.source_server and conn_detail.target_server else f"Connection #{conn_id}"
-            await ssh_connection_crud.delete(db, conn_id)
-            try:
-                await activity_crud.log_activity(db, "ssh_connection", conn_id, conn_name, "deleted")
-            except Exception:
-                logger.warning("Failed to log activity for ssh_connection bulk-delete %s", conn_id, exc_info=True)
+    def conn_name_getter(conn):
+        return f"{conn.source_server.name} -> {conn.target_server.name}" if conn.source_server and conn.target_server else f"Connection #{conn.id}"
+
+    await bulk_delete_entities(
+        db, ssh_connection_crud, "ssh_connection", body.ids,
+        name_getter=conn_name_getter,
+        entity_getter=ssh_connection_crud.get_detail,
+    )
 
 
 @router.get("/graph", response_model=ConnectivityGraph)

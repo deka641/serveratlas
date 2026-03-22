@@ -28,7 +28,8 @@ export function exportToCsv<T>(data: T[], columns: CsvColumn<T>[], filename: str
     columns.map((c) => escapeCsvValue(c.formatter ? c.formatter(item) : item[c.key])).join(',')
   );
   const csv = [header, ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const bom = '\uFEFF'; // UTF-8 BOM for Excel compatibility
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

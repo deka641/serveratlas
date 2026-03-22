@@ -10,7 +10,8 @@ from app.models.backup import Backup, BackupFrequency, BackupStatus
 from app.models.provider import Provider
 from app.models.server import Server, ServerStatus
 from app.models.ssh_key import SshKey
-from app.schemas.dashboard import BackupCoverage, CostByProvider, CostSummary, CurrencyTotal, DashboardStats, OverdueBackup, RecentBackup
+from app.models.tag import Tag, ServerTag
+from app.schemas.dashboard import BackupCoverage, CostByProvider, CostByTag, CostSummary, CurrencyTotal, DashboardStats, HealthSummary, OverdueBackup, RecentBackup
 
 
 class DashboardCRUD:
@@ -193,6 +194,54 @@ class DashboardCRUD:
 
         overdue.sort(key=lambda x: x.hours_overdue, reverse=True)
         return overdue
+
+
+    async def get_cost_by_tag(self, db: AsyncSession) -> list[CostByTag]:
+        stmt = (
+            select(
+                Tag.id.label("tag_id"),
+                Tag.name.label("tag_name"),
+                Tag.color.label("tag_color"),
+                func.coalesce(func.sum(Server.monthly_cost), 0).label("total_cost"),
+                func.coalesce(Server.cost_currency, "EUR").label("currency"),
+                func.count(Server.id).label("server_count"),
+            )
+            .join(ServerTag, ServerTag.tag_id == Tag.id)
+            .join(Server, Server.id == ServerTag.server_id)
+            .where(Server.monthly_cost.isnot(None))
+            .group_by(Tag.id, Tag.name, Tag.color, Server.cost_currency)
+            .order_by(func.sum(Server.monthly_cost).desc())
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            CostByTag(
+                tag_id=row.tag_id,
+                tag_name=row.tag_name,
+                tag_color=row.tag_color,
+                total_cost=Decimal(str(row.total_cost)),
+                currency=row.currency or "EUR",
+                server_count=row.server_count,
+            )
+            for row in rows
+        ]
+
+    async def get_health_summary(self, db: AsyncSession) -> HealthSummary:
+        stmt = select(
+            func.count(Server.id).label("total"),
+            func.count(Server.id).filter(Server.last_check_status == "healthy").label("healthy"),
+            func.count(Server.id).filter(Server.last_check_status == "unhealthy").label("unhealthy"),
+            func.count(Server.id).filter(Server.last_check_status.is_(None)).label("unchecked"),
+            func.max(Server.last_checked_at).label("last_check"),
+        )
+        row = (await db.execute(stmt)).one()
+        return HealthSummary(
+            total=row.total,
+            healthy=row.healthy,
+            unhealthy=row.unhealthy,
+            unchecked=row.unchecked,
+            last_full_check=row.last_check.isoformat() if row.last_check else None,
+        )
 
 
 dashboard_crud = DashboardCRUD()

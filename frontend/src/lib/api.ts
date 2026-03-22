@@ -68,8 +68,8 @@ async function requestPaginated<T>(path: string, options?: RequestInit): Promise
 }
 
 import type {
-  Activity, Application, Backup, BackupCoverage, ConnectivityGraph, CostSummary,
-  DashboardStats, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
+  Activity, Application, Backup, BackupCoverage, BatchHealthCheckResult, ConnectivityGraph, CostByTag, CostSummary,
+  DashboardStats, HealthSummary, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
   ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag,
 } from './types';
 
@@ -192,6 +192,8 @@ export const api = {
   getRecentBackups: () => request<RecentBackup[]>('/dashboard/recent-backups'),
   getBackupCoverage: () => request<BackupCoverage>('/dashboard/backup-coverage'),
   getOverdueBackups: () => request<OverdueBackup[]>('/dashboard/overdue-backups'),
+  getCostByTag: () => request<CostByTag[]>('/dashboard/cost-by-tag'),
+  getHealthSummary: () => request<HealthSummary>('/dashboard/health-summary'),
 
   // Tags
   listTags: (params?: { search?: string; skip?: number; limit?: number }) => {
@@ -235,4 +237,6 @@ export const api = {
     request<Server>(`/servers/${id}/health-check`, { method: 'POST', body: JSON.stringify(data) }),
   runHealthCheck: (id: number) =>
     request<Server>(`/servers/${id}/run-health-check`, { method: 'POST' }),
+  batchHealthCheck: () =>
+    request<BatchHealthCheckResult>('/servers/batch-health-check', { method: 'POST' }),
 };

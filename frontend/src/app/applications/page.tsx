@@ -57,6 +57,10 @@ function ApplicationsPageContent() {
     setUrlState({ search: debouncedSearch, page: '0' });
   }, [debouncedSearch]);
 
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [urlState.status, urlState.server, debouncedSearch, page]);
+
   const { data: servers } = useServers();
   const params = {
     status: urlState.status || undefined,

@@ -19,10 +19,12 @@ async def bulk_delete_entities(
     entity_type: str,
     ids: list[int],
     name_getter: Callable[[Any], str] | None = None,
+    entity_getter: Callable[[AsyncSession, int], Awaitable[Any]] | None = None,
 ) -> None:
     """Generic bulk-delete with activity logging. Caps at 100 items."""
     for entity_id in ids[:100]:
-        entity = await crud.get(db, entity_id)
+        getter = entity_getter or crud.get
+        entity = await getter(db, entity_id)
         if entity:
             entity_name = name_getter(entity) if name_getter else getattr(entity, 'name', f'#{entity_id}')
             await crud.delete(db, entity_id)

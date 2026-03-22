@@ -12,11 +12,54 @@ interface ServerImportModalProps {
   onComplete: () => void;
 }
 
+function parseCsvRow(line: string): string[] {
+  const fields: string[] = [];
+  let i = 0;
+  while (i < line.length) {
+    // Skip leading whitespace
+    while (i < line.length && line[i] === ' ') i++;
+    if (i >= line.length) { fields.push(''); break; }
+    if (line[i] === '"') {
+      // Quoted field: collect until closing quote (doubled quotes are escaped)
+      i++; // skip opening quote
+      let val = '';
+      while (i < line.length) {
+        if (line[i] === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            val += '"';
+            i += 2;
+          } else {
+            i++; // skip closing quote
+            break;
+          }
+        } else {
+          val += line[i];
+          i++;
+        }
+      }
+      fields.push(val);
+      // Skip to next comma or end
+      while (i < line.length && line[i] !== ',') i++;
+      i++; // skip comma
+    } else {
+      // Unquoted field
+      let val = '';
+      while (i < line.length && line[i] !== ',') {
+        val += line[i];
+        i++;
+      }
+      fields.push(val.trim());
+      i++; // skip comma
+    }
+  }
+  return fields;
+}
+
 function parseCsv(text: string): { headers: string[]; rows: string[][] } {
   const lines = text.trim().split('\n').filter((l) => l.trim());
   if (lines.length < 2) return { headers: [], rows: [] };
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-  const rows = lines.slice(1).map((line) => line.split(',').map((c) => c.trim().replace(/^"|"$/g, '')));
+  const headers = parseCsvRow(lines[0]);
+  const rows = lines.slice(1).map((line) => parseCsvRow(line));
   return { headers, rows };
 }
 

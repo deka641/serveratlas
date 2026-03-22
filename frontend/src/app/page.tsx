@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useData } from '@/hooks/useData';
 import { formatDateTime } from '@/lib/formatters';
-import type { Activity, OverdueBackup } from '@/lib/types';
+import { useState } from 'react';
+import type { Activity, CostByTag, OverdueBackup } from '@/lib/types';
 import PageContainer from '@/components/PageContainer';
 import StatsCards from '@/components/domain/StatsCards';
 import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
@@ -13,8 +14,10 @@ import BackupHealthTable from '@/components/domain/BackupHealthTable';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import SectionSkeleton from '@/components/ui/SectionSkeleton';
+import { useToast } from '@/components/ui/Toast';
 
 export default function DashboardPage() {
+  const { addToast } = useToast();
   const {
     data: stats,
     loading: statsLoading,
@@ -60,6 +63,35 @@ export default function DashboardPage() {
     refetch: refetchActivities,
   } = useData(() => api.listActivities({ limit: 10 }));
 
+  const {
+    data: costByTag,
+    loading: costByTagLoading,
+    refetch: refetchCostByTag,
+  } = useData(() => api.getCostByTag());
+
+  const {
+    data: healthSummary,
+    loading: healthSummaryLoading,
+    refetch: refetchHealthSummary,
+  } = useData(() => api.getHealthSummary());
+
+  const [batchChecking, setBatchChecking] = useState(false);
+
+  async function handleBatchHealthCheck() {
+    setBatchChecking(true);
+    try {
+      const result = await api.batchHealthCheck();
+      addToast('success', `Health check complete: ${result.healthy} healthy, ${result.unhealthy} unhealthy, ${result.skipped} skipped`);
+      refetchHealthSummary();
+      refetchServers();
+      refetchStats();
+    } catch {
+      addToast('error', 'Batch health check failed');
+    } finally {
+      setBatchChecking(false);
+    }
+  }
+
   function handleRefreshAll() {
     refetchStats();
     refetchCost();
@@ -68,6 +100,8 @@ export default function DashboardPage() {
     refetchCoverage();
     refetchOverdue();
     refetchActivities();
+    refetchCostByTag();
+    refetchHealthSummary();
   }
 
   const activities = activitiesResult?.items ?? null;
@@ -151,6 +185,105 @@ export default function DashboardPage() {
             <CostOverview costSummary={costSummary} />
           ) : null}
         </section>
+
+        {/* Infrastructure Health Summary (#20) */}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Infrastructure Health</h2>
+            <Button variant="secondary" size="sm" onClick={handleBatchHealthCheck} disabled={batchChecking}>
+              {batchChecking ? 'Checking...' : 'Check All Servers'}
+            </Button>
+          </div>
+          {healthSummaryLoading ? (
+            <SectionSkeleton height="h-20" />
+          ) : healthSummary ? (
+            <Card>
+              <div className="flex flex-col gap-3">
+                <div className="flex h-4 w-full overflow-hidden rounded-full bg-gray-200">
+                  {healthSummary.total > 0 && (
+                    <>
+                      {healthSummary.healthy > 0 && (
+                        <div
+                          className="bg-green-500 transition-all"
+                          style={{ width: `${(healthSummary.healthy / healthSummary.total) * 100}%` }}
+                        />
+                      )}
+                      {healthSummary.unhealthy > 0 && (
+                        <div
+                          className="bg-red-500 transition-all"
+                          style={{ width: `${(healthSummary.unhealthy / healthSummary.total) * 100}%` }}
+                        />
+                      )}
+                      {healthSummary.unchecked > 0 && (
+                        <div
+                          className="bg-gray-400 transition-all"
+                          style={{ width: `${(healthSummary.unchecked / healthSummary.total) * 100}%` }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
+                    {healthSummary.healthy} healthy
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+                    {healthSummary.unhealthy} unhealthy
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-gray-400" />
+                    {healthSummary.unchecked} unchecked
+                  </span>
+                  {healthSummary.last_full_check && (
+                    <span className="ml-auto text-xs text-gray-500">
+                      Last check: {formatDateTime(healthSummary.last_full_check)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ) : null}
+        </section>
+
+        {/* Cost by Tag (#18) */}
+        {!costByTagLoading && costByTag && costByTag.length > 0 && (
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Cost by Tag</h2>
+            <Card>
+              <div className="space-y-3">
+                {costByTag.map((item: CostByTag) => {
+                  const maxCost = Math.max(...costByTag.map((c: CostByTag) => c.total_cost));
+                  const barWidth = maxCost > 0 ? (item.total_cost / maxCost) * 100 : 0;
+                  return (
+                    <div key={`${item.tag_id}-${item.currency}`} className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 w-32 flex-shrink-0">
+                        <span
+                          className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: item.tag_color }}
+                        />
+                        <span className="text-sm font-medium text-gray-700 truncate">{item.tag_name}</span>
+                      </div>
+                      <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${barWidth}%`, backgroundColor: item.tag_color + '80' }}
+                        />
+                      </div>
+                      <div className="text-sm text-gray-600 w-28 text-right flex-shrink-0">
+                        {item.total_cost.toFixed(2)} {item.currency}
+                      </div>
+                      <div className="text-xs text-gray-400 w-20 text-right flex-shrink-0">
+                        {item.server_count} server{item.server_count !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </section>
+        )}
 
         {/* Overdue Backups Warning */}
         {!overdueLoading && overdueBackups && overdueBackups.length > 0 && (

@@ -97,8 +97,14 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
       case 'ip_v4':
         if (value && String(value).trim()) {
           const ipv4Pattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
-          if (!ipv4Pattern.test(String(value).trim())) {
+          const ipStr = String(value).trim();
+          if (!ipv4Pattern.test(ipStr)) {
             error = 'Invalid IPv4 address format';
+          } else {
+            const octets = ipStr.split('.').map(Number);
+            if (octets.some((o) => o < 0 || o > 255)) {
+              error = 'Each octet must be between 0 and 255';
+            }
           }
         }
         break;
@@ -126,7 +132,14 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
     if (!name.trim()) errors.name = 'Name is required';
     if (ipV4.trim()) {
       const ipv4Pattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
-      if (!ipv4Pattern.test(ipV4.trim())) errors.ip_v4 = 'Invalid IPv4 address format';
+      if (!ipv4Pattern.test(ipV4.trim())) {
+        errors.ip_v4 = 'Invalid IPv4 address format';
+      } else {
+        const octets = ipV4.trim().split('.').map(Number);
+        if (octets.some((o) => o < 0 || o > 255)) {
+          errors.ip_v4 = 'Each octet must be between 0 and 255';
+        }
+      }
     }
     if (monthlyCost !== '' && Number(monthlyCost) < 0) {
       errors.monthly_cost = 'Monthly cost must be 0 or greater';

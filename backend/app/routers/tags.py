@@ -52,6 +52,8 @@ async def batch_assign_tags(request: Request, body: BatchTagRequest, db: AsyncSe
         raise HTTPException(400, "Maximum 50 tags per request")
 
     count = 0
+    skipped = 0
+    errors: list[str] = []
     for server_id in body.server_ids:
         for tag_id in body.tag_ids:
             try:
@@ -70,9 +72,11 @@ async def batch_assign_tags(request: Request, body: BatchTagRequest, db: AsyncSe
                     )
                 except Exception:
                     logger.warning("Failed to log activity for batch tag %s", tag_id, exc_info=True)
-            except Exception:
+            except Exception as e:
+                skipped += 1
+                errors.append(f"Tag {tag_id} / Server {server_id}: {type(e).__name__}")
                 continue
-    return {"status": "ok", "count": count}
+    return {"status": "ok", "count": count, "skipped": skipped, "errors": errors}
 
 
 @router.get("/{id}", response_model=TagRead)

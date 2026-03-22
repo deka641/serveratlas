@@ -49,6 +49,10 @@ function BackupsPageContent() {
     setUrlState({ search: debouncedSearch, page: '0' });
   }, [debouncedSearch]);
 
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [urlState.status, urlState.server, debouncedSearch, page]);
+
   const { data: servers } = useServers();
   const { data: backups, total, loading, error, refetch } = useBackups({
     status: urlState.status || undefined,

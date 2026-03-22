@@ -58,6 +58,7 @@ export default function ReportPage() {
   const tags = tagsResult?.items ?? [];
   const { data: backupsResult } = useData(() => api.listBackups({ limit: 500 }));
   const { data: overdueBackups } = useData(() => api.getOverdueBackups());
+  const { data: costByTag } = useData(() => api.getCostByTag());
 
   const [filterProvider, setFilterProvider] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -163,7 +164,7 @@ export default function ReportPage() {
   const allClear = findings.length === 0;
 
   return (
-    <div className="mx-auto max-w-4xl p-8 print:p-0 print:text-xs">
+    <div className="mx-auto max-w-4xl p-8 print:p-0 print:text-sm">
       {/* C10 + C11: Navigation header with back link and print button */}
       <header className="mb-8 flex items-center justify-between border-b border-gray-200 pb-4" data-no-print>
         <Link href="/" className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
@@ -223,9 +224,27 @@ export default function ReportPage() {
       </div>
 
       {(filterProvider || filterStatus) && (
-        <p className="mb-4 text-sm text-gray-600 italic">
+        <p className="mb-4 text-sm text-gray-600 italic print:border print:border-gray-300 print:rounded print:px-3 print:py-2 print:font-medium">
           Filtered by: {filterProvider ? `Provider: ${filterProvider}` : ''}{filterProvider && filterStatus ? ' | ' : ''}{filterStatus ? `Status: ${filterStatus}` : ''}
         </p>
+      )}
+
+      {/* Data truncation warning */}
+      {((serversResult && serversResult.total > serversResult.items.length) ||
+        (applicationsResult && applicationsResult.total > applicationsResult.items.length) ||
+        (backupsResult && backupsResult.total > backupsResult.items.length)) && (
+        <div className="mb-4 flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <span>
+            <span className="font-medium">Partial data:</span>{' '}
+            {serversResult && serversResult.total > serversResult.items.length && `Showing ${serversResult.items.length} of ${serversResult.total} servers. `}
+            {applicationsResult && applicationsResult.total > applicationsResult.items.length && `Showing ${applicationsResult.items.length} of ${applicationsResult.total} applications. `}
+            {backupsResult && backupsResult.total > backupsResult.items.length && `Showing ${backupsResult.items.length} of ${backupsResult.total} backups. `}
+            Use filters to narrow down or export for complete data.
+          </span>
+        </div>
       )}
 
       {/* Executive Summary */}
@@ -399,6 +418,36 @@ export default function ReportPage() {
           </table>
         )}
       </section>
+
+      {/* Cost by Tag */}
+      {costByTag && costByTag.length > 0 && (
+        <section className="mb-8 report-section">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost by Tag</h2>
+          <table className="w-full text-sm print:text-xs border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Tag</th>
+                <th className="py-2 text-right font-medium">Servers</th>
+                <th className="py-2 text-right font-medium">Monthly Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costByTag.map((item, i) => (
+                <tr key={i} className="border-b">
+                  <td className="py-2">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block h-2.5 w-2.5 rounded-full print-color-exact" style={{ backgroundColor: item.tag_color }} />
+                      {item.tag_name}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right">{item.server_count}</td>
+                  <td className="py-2 text-right font-mono">{formatCost(item.total_cost, item.currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {/* Server Inventory */}
       <section className="mb-8 report-section">

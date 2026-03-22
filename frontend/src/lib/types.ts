@@ -220,3 +220,28 @@ export interface Activity {
   changes: string | null;
   created_at: string;
 }
+
+export interface CostByTag {
+  tag_id: number;
+  tag_name: string;
+  tag_color: string;
+  total_cost: number;
+  currency: string;
+  server_count: number;
+}
+
+export interface HealthSummary {
+  total: number;
+  healthy: number;
+  unhealthy: number;
+  unchecked: number;
+  last_full_check: string | null;
+}
+
+export interface BatchHealthCheckResult {
+  checked: number;
+  healthy: number;
+  unhealthy: number;
+  skipped: number;
+  errors: string[];
+}

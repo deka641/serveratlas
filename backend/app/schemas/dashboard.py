@@ -71,3 +71,33 @@ class OverdueBackup(BaseModel):
     source_server_name: str | None = None
     application_name: str | None = None
     hours_overdue: int = 0
+
+
+class CostByTag(BaseModel):
+    tag_id: int
+    tag_name: str
+    tag_color: str
+    total_cost: Decimal
+    currency: str
+    server_count: int
+
+    @field_serializer('total_cost')
+    @classmethod
+    def serialize_cost(cls, v):
+        return float(v) if v is not None else None
+
+
+class HealthSummary(BaseModel):
+    total: int = 0
+    healthy: int = 0
+    unhealthy: int = 0
+    unchecked: int = 0
+    last_full_check: str | None = None
+
+
+class BatchHealthCheckResult(BaseModel):
+    checked: int = 0
+    healthy: int = 0
+    unhealthy: int = 0
+    skipped: int = 0
+    errors: list[str] = []

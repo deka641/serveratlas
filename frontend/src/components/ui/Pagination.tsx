@@ -17,12 +17,22 @@ export default function Pagination({ page, pageSize, total, onPageChange }: Pagi
 
   if (total <= pageSize) return null;
 
+  const [jumpError, setJumpError] = useState(false);
+
   function handleJump() {
     const pageNum = parseInt(jumpValue, 10);
     if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) {
       onPageChange(pageNum - 1);
+      setJumpValue('');
+      setJumpError(false);
+    } else if (jumpValue.trim() !== '') {
+      // Clamp to nearest valid page
+      const clamped = Math.max(1, Math.min(totalPages, pageNum || 1));
+      onPageChange(clamped - 1);
+      setJumpValue('');
+      setJumpError(true);
+      setTimeout(() => setJumpError(false), 1500);
     }
-    setJumpValue('');
   }
 
   return (
@@ -64,7 +74,7 @@ export default function Pagination({ page, pageSize, total, onPageChange }: Pagi
             }}
             onBlur={() => setJumpValue('')}
             placeholder={String(page + 1)}
-            className="w-12 rounded-md border border-gray-300 px-2 py-1 text-center text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`w-12 rounded-md border px-2 py-1 text-center text-sm focus:outline-none focus:ring-1 ${jumpError ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'}`}
             aria-label="Go to page"
           />
           <span className="text-sm text-gray-500">of {totalPages}</span>

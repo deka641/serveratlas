@@ -57,6 +57,7 @@ function ServersPageContent() {
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [batchChecking, setBatchChecking] = useState(false);
   const [urlState, setUrlState] = useUrlState({
     status: '',
     provider: '',
@@ -72,6 +73,11 @@ function ServersPageContent() {
   useEffect(() => {
     setUrlState({ search: debouncedSearch, page: '0' });
   }, [debouncedSearch]);
+
+  // Clear stale selections when filters/search/page change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [urlState.status, urlState.provider, urlState.tag, debouncedSearch, page]);
 
   // Ctrl+K is now handled by the global CommandPalette
 
@@ -167,6 +173,19 @@ function ServersPageContent() {
     }
   }
 
+  async function handleBatchHealthCheck() {
+    setBatchChecking(true);
+    try {
+      const result = await api.batchHealthCheck();
+      addToast('success', `Health check: ${result.healthy} healthy, ${result.unhealthy} unhealthy, ${result.skipped} skipped`);
+      refetch();
+    } catch {
+      addToast('error', 'Batch health check failed');
+    } finally {
+      setBatchChecking(false);
+    }
+  }
+
   function handleCompare() {
     const ids = Array.from(selectedIds).slice(0, 5);
     router.push(`/servers/compare?ids=${ids.join(',')}`);
@@ -188,6 +207,7 @@ function ServersPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
+          <Button variant="secondary" onClick={handleBatchHealthCheck} disabled={batchChecking}>{batchChecking ? 'Checking...' : 'Check All'}</Button>
           <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
           <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
           <Button variant="secondary" onClick={() => setShowImport(true)}>Import CSV</Button>

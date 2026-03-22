@@ -14,13 +14,15 @@ export function formatDate(dateStr: string | null | undefined): string {
 
 export function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '\u2014';
-  return new Date(dateStr).toLocaleDateString('en-US', {
+  const formatted = new Date(dateStr).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: 'UTC',
   });
+  return `${formatted} (UTC)`;
 }
 
 export function formatRAM(mb: number | null | undefined): string {

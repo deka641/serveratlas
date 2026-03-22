@@ -51,6 +51,10 @@ function TagsPageContent() {
     setUrlState({ search: debouncedSearch, page: '0' });
   }, [debouncedSearch]);
 
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [debouncedSearch, page]);
+
   const params = {
     search: debouncedSearch || undefined,
     skip: page * PAGE_SIZE,

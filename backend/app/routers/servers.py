@@ -17,6 +17,7 @@ from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_c
 logger = logging.getLogger(__name__)
 from app.database import get_db
 from app.schemas.application import ApplicationRead
+from app.schemas.dashboard import BatchHealthCheckResult
 from app.schemas.server import HealthCheckUpdate, ServerCreate, ServerRead, ServerReadDetail, ServerUpdate
 from app.schemas.server_ssh_key import ServerSshKeyCreate, ServerSshKeyRead
 from app.schemas.ssh_connection import SshConnectionRead
@@ -299,7 +300,7 @@ async def run_health_check(request: Request, id: int, db: AsyncSession = Depends
     if not server:
         raise HTTPException(404, "Server not found")
 
-    host = server.ip_v4 or server.hostname
+    host = server.ip_v4 or server.ip_v6 or server.hostname
     if not host:
         raise HTTPException(400, "Server has no IP address or hostname configured")
 
@@ -307,19 +308,30 @@ async def run_health_check(request: Request, id: int, db: AsyncSession = Depends
     status = "unhealthy"
     response_time_ms = None
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        start = time.monotonic()
+        # Use getaddrinfo to resolve address family (IPv4/IPv6) automatically
         loop = asyncio.get_event_loop()
-        sock.settimeout(5)
-        await loop.run_in_executor(None, sock.connect, (host, port))
-        elapsed = time.monotonic() - start
-        response_time_ms = int(elapsed * 1000)
-        status = "healthy"
-    except (OSError, socket.timeout, ConnectionRefusedError):
+        addrinfo = await loop.run_in_executor(
+            None, lambda: socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        )
+        if not addrinfo:
+            raise OSError("Could not resolve host")
+
+        af, socktype, proto, canonname, sockaddr = addrinfo[0]
+        sock = socket.socket(af, socktype, proto)
+        try:
+            start = time.monotonic()
+            sock.settimeout(5)
+            await loop.run_in_executor(None, sock.connect, sockaddr)
+            elapsed = time.monotonic() - start
+            response_time_ms = int(elapsed * 1000)
+            status = "healthy"
+        except (OSError, socket.timeout, ConnectionRefusedError):
+            status = "unhealthy"
+        finally:
+            sock.close()
+    except (OSError, socket.gaierror):
         status = "unhealthy"
-    finally:
-        sock.close()
 
     update_data = {
         "last_checked_at": datetime.utcnow(),
@@ -329,3 +341,73 @@ async def run_health_check(request: Request, id: int, db: AsyncSession = Depends
     await server_crud.update(db, id, update_data)
     server = await server_crud.get_with_provider(db, id)
     return _server_to_read(server)
+
+
+async def _check_single_server(host: str) -> tuple[str, int | None]:
+    """Run a TCP probe on port 22 for a single server. Returns (status, response_time_ms)."""
+    port = 22
+    try:
+        loop = asyncio.get_event_loop()
+        addrinfo = await loop.run_in_executor(
+            None, lambda: socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        )
+        if not addrinfo:
+            return "unhealthy", None
+
+        af, socktype, proto, canonname, sockaddr = addrinfo[0]
+        sock = socket.socket(af, socktype, proto)
+        try:
+            start = time.monotonic()
+            sock.settimeout(5)
+            await loop.run_in_executor(None, sock.connect, sockaddr)
+            elapsed = time.monotonic() - start
+            return "healthy", int(elapsed * 1000)
+        except (OSError, socket.timeout, ConnectionRefusedError):
+            return "unhealthy", None
+        finally:
+            sock.close()
+    except (OSError, socket.gaierror):
+        return "unhealthy", None
+
+
+@router.post("/batch-health-check")
+@limiter.limit("10/minute")
+async def batch_health_check(request: Request, db: AsyncSession = Depends(get_db)):
+    """Run health checks on all active servers with IP/hostname configured."""
+    from sqlalchemy import select as sql_select
+    from app.models.server import Server as ServerModel, ServerStatus as SS
+
+    stmt = sql_select(ServerModel).where(ServerModel.status != SS.decommissioned)
+    all_servers = (await db.execute(stmt)).scalars().all()
+
+    checked = 0
+    healthy = 0
+    unhealthy = 0
+    skipped = 0
+    errors: list[str] = []
+    semaphore = asyncio.Semaphore(20)
+
+    async def check_one(srv):
+        nonlocal checked, healthy, unhealthy, skipped
+        host = srv.ip_v4 or srv.ip_v6 or srv.hostname
+        if not host:
+            skipped += 1
+            return
+        async with semaphore:
+            try:
+                s, rt = await _check_single_server(host)
+                await server_crud.update(db, srv.id, {
+                    "last_checked_at": datetime.utcnow(),
+                    "last_check_status": s,
+                    "response_time_ms": rt,
+                })
+                checked += 1
+                if s == "healthy":
+                    healthy += 1
+                else:
+                    unhealthy += 1
+            except Exception as e:
+                errors.append(f"{srv.name}: {type(e).__name__}")
+
+    await asyncio.gather(*[check_one(s) for s in all_servers])
+    return {"checked": checked, "healthy": healthy, "unhealthy": unhealthy, "skipped": skipped, "errors": errors}

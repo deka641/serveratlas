@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ShortcutsButton } from '@/components/KeyboardShortcutsHelp';
 
 interface NavItem {
   label: string;
@@ -199,6 +200,9 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           </Link>
         ))}
       </nav>
+      <div className="mt-auto border-t border-slate-700 pt-2 px-3 pb-3">
+        <ShortcutsButton collapsed={collapsed} />
+      </div>
     </aside>
   );
 

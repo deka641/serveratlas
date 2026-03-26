@@ -145,8 +145,8 @@ function BackupsPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : `Export Page (${backups?.length ?? 0})`}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : `Export All (${total > 500 ? '500/' : ''}${total})`}</Button>
           <Link href="/backups/new">
             <Button>Add Backup</Button>
           </Link>
@@ -201,8 +201,8 @@ function BackupsPageContent() {
         </>
       ) : (
         <EmptyState
-          message={searchTerm || urlState.status || urlState.server ? 'No backups match your filters' : 'No backups found'}
-          description={searchTerm || urlState.status || urlState.server ? 'Try different search criteria.' : 'Get started by adding your first backup.'}
+          message={searchTerm || urlState.status || urlState.server ? 'No backups match your filters' : 'No backups yet'}
+          description={searchTerm || urlState.status || urlState.server ? 'Try adjusting your filters.' : 'Get started by adding your first backup.'}
         />
       )}
 

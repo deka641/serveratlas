@@ -3,17 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from app.schemas.server import ServerRead
 
 
 class ProviderBase(BaseModel):
-    name: str
-    website: str | None = None
-    support_contact: str | None = None
-    notes: str | None = None
+    name: str = Field(..., max_length=255)
+    website: str | None = Field(None, max_length=512)
+    support_contact: str | None = Field(None, max_length=2000)
+    notes: str | None = Field(None, max_length=2000)
 
 
 class ProviderCreate(ProviderBase):
@@ -21,10 +21,10 @@ class ProviderCreate(ProviderBase):
 
 
 class ProviderUpdate(BaseModel):
-    name: str | None = None
-    website: str | None = None
-    support_contact: str | None = None
-    notes: str | None = None
+    name: str | None = Field(None, max_length=255)
+    website: str | None = Field(None, max_length=512)
+    support_contact: str | None = Field(None, max_length=2000)
+    notes: str | None = Field(None, max_length=2000)
 
 
 class ProviderRead(ProviderBase):

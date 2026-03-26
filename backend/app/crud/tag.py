@@ -1,4 +1,5 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
@@ -50,6 +51,28 @@ class TagCRUD(CRUDBase[Tag]):
             select(func.count(ServerTag.server_id)).where(ServerTag.tag_id == tag_id)
         )
         return result.scalar() or 0
+
+    async def get_multi_by_ids(self, db: AsyncSession, tag_ids: list[int]) -> list[Tag]:
+        result = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+        return list(result.scalars().all())
+
+    async def bulk_add_tags_to_servers(self, db: AsyncSession, server_ids: list[int], tag_ids: list[int]) -> int:
+        values = [{"server_id": sid, "tag_id": tid} for sid in server_ids for tid in tag_ids]
+        if not values:
+            return 0
+        stmt = pg_insert(ServerTag).values(values).on_conflict_do_nothing()
+        result = await db.execute(stmt)
+        await db.flush()
+        return result.rowcount
+
+    async def bulk_remove_tags_from_servers(self, db: AsyncSession, server_ids: list[int], tag_ids: list[int]) -> int:
+        stmt = delete(ServerTag).where(
+            ServerTag.server_id.in_(server_ids),
+            ServerTag.tag_id.in_(tag_ids),
+        )
+        result = await db.execute(stmt)
+        await db.flush()
+        return result.rowcount
 
 
 tag_crud = TagCRUD(Tag)

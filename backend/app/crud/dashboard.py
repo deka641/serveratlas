@@ -11,7 +11,7 @@ from app.models.provider import Provider
 from app.models.server import Server, ServerStatus
 from app.models.ssh_key import SshKey
 from app.models.tag import Tag, ServerTag
-from app.schemas.dashboard import BackupCoverage, CostByProvider, CostByTag, CostSummary, CurrencyTotal, DashboardStats, HealthSummary, OverdueBackup, RecentBackup
+from app.schemas.dashboard import BackupCoverage, CostByProvider, CostByTag, CostSummary, CurrencyTotal, DashboardStats, DocumentationCoverage, HealthSummary, OverdueBackup, RecentBackup, UndocumentedServer
 
 
 class DashboardCRUD:
@@ -241,6 +241,36 @@ class DashboardCRUD:
             unhealthy=row.unhealthy,
             unchecked=row.unchecked,
             last_full_check=row.last_check.isoformat() if row.last_check else None,
+        )
+
+
+    async def get_documentation_coverage(self, db: AsyncSession) -> DocumentationCoverage:
+        total = (await db.execute(select(func.count(Server.id)))).scalar() or 0
+        documented = (await db.execute(
+            select(func.count(Server.id)).where(
+                Server.documentation.isnot(None),
+                Server.documentation != "",
+            )
+        )).scalar() or 0
+
+        undocumented_stmt = (
+            select(Server.id, Server.name)
+            .where(
+                (Server.documentation.is_(None)) | (Server.documentation == "")
+            )
+            .order_by(Server.name)
+            .limit(50)
+        )
+        result = await db.execute(undocumented_stmt)
+        undocumented = [
+            UndocumentedServer(id=row.id, name=row.name)
+            for row in result.all()
+        ]
+
+        return DocumentationCoverage(
+            total=total,
+            documented=documented,
+            undocumented_servers=undocumented,
         )
 
 

@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useData } from '@/hooks/useData';
 import { formatDateTime } from '@/lib/formatters';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Activity, CostByTag, OverdueBackup } from '@/lib/types';
 import PageContainer from '@/components/PageContainer';
 import StatsCards from '@/components/domain/StatsCards';
 import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
 import CostOverview from '@/components/domain/CostOverview';
 import BackupHealthTable from '@/components/domain/BackupHealthTable';
+import DocumentationCoverage from '@/components/domain/DocumentationCoverage';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import SectionSkeleton from '@/components/ui/SectionSkeleton';
@@ -75,7 +76,21 @@ export default function DashboardPage() {
     refetch: refetchHealthSummary,
   } = useData(() => api.getHealthSummary());
 
+  const {
+    data: docCoverage,
+    loading: docCoverageLoading,
+    refetch: refetchDocCoverage,
+  } = useData(() => api.getDocumentationCoverage());
+
   const [batchChecking, setBatchChecking] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('dashboard-auto-refresh');
+      return stored ? Number(stored) : null;
+    }
+    return null;
+  });
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   async function handleBatchHealthCheck() {
     setBatchChecking(true);
@@ -92,7 +107,7 @@ export default function DashboardPage() {
     }
   }
 
-  function handleRefreshAll() {
+  const handleRefreshAll = useCallback(() => {
     refetchStats();
     refetchCost();
     refetchServers();
@@ -102,6 +117,23 @@ export default function DashboardPage() {
     refetchActivities();
     refetchCostByTag();
     refetchHealthSummary();
+    refetchDocCoverage();
+    setLastUpdated(new Date());
+  }, [refetchStats, refetchCost, refetchServers, refetchBackups, refetchCoverage, refetchOverdue, refetchActivities, refetchCostByTag, refetchHealthSummary, refetchDocCoverage]);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = setInterval(handleRefreshAll, autoRefresh * 1000);
+    return () => clearInterval(id);
+  }, [autoRefresh, handleRefreshAll]);
+
+  function handleAutoRefreshChange(value: string) {
+    const num = value ? Number(value) : null;
+    setAutoRefresh(num);
+    if (typeof window !== 'undefined') {
+      if (num) localStorage.setItem('dashboard-auto-refresh', String(num));
+      else localStorage.removeItem('dashboard-auto-refresh');
+    }
   }
 
   const activities = activitiesResult?.items ?? null;
@@ -118,6 +150,20 @@ export default function DashboardPage() {
       onRetry={refetchStats}
       action={
         <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">
+            Updated {lastUpdated.toLocaleTimeString()}
+          </span>
+          <select
+            value={autoRefresh ?? ''}
+            onChange={(e) => handleAutoRefreshChange(e.target.value)}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700"
+            aria-label="Auto-refresh interval"
+          >
+            <option value="">Auto: Off</option>
+            <option value="30">Auto: 30s</option>
+            <option value="60">Auto: 60s</option>
+            <option value="300">Auto: 5m</option>
+          </select>
           <Button variant="secondary" onClick={handleRefreshAll}>
             Refresh
           </Button>
@@ -246,6 +292,9 @@ export default function DashboardPage() {
             </Card>
           ) : null}
         </section>
+
+        {/* Documentation Coverage */}
+        <DocumentationCoverage loading={docCoverageLoading} coverage={docCoverage} refetch={refetchDocCoverage} />
 
         {/* Cost by Tag (#18) */}
         {!costByTagLoading && costByTag && costByTag.length > 0 && (

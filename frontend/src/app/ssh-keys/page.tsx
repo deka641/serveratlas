@@ -24,7 +24,9 @@ const sshKeyCsvColumns = [
   { key: 'name' as const, label: 'Name' },
   { key: 'key_type' as const, label: 'Key Type' },
   { key: 'fingerprint' as const, label: 'Fingerprint' },
+  { key: 'public_key' as const, label: 'Public Key' },
   { key: 'comment' as const, label: 'Comment' },
+  { key: 'notes' as const, label: 'Notes' },
 ];
 
 function SshKeysPageContent() {
@@ -114,8 +116,8 @@ function SshKeysPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : `Export Page (${keys?.length ?? 0})`}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : `Export All (${total > 500 ? '500/' : ''}${total})`}</Button>
           <Link href="/ssh-keys/new">
             <Button>Add SSH Key</Button>
           </Link>
@@ -155,8 +157,8 @@ function SshKeysPageContent() {
         </>
       ) : (
         <EmptyState
-          message={searchTerm ? 'No SSH keys match your search' : 'No SSH keys found'}
-          description={searchTerm ? 'Try a different search term.' : 'Get started by adding your first SSH key.'}
+          message={searchTerm ? 'No SSH keys match your filters' : 'No SSH keys yet'}
+          description={searchTerm ? 'Try adjusting your filters.' : 'Get started by adding your first SSH key.'}
         />
       )}
 

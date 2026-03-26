@@ -101,3 +101,14 @@ class BatchHealthCheckResult(BaseModel):
     unhealthy: int = 0
     skipped: int = 0
     errors: list[str] = []
+
+
+class UndocumentedServer(BaseModel):
+    id: int
+    name: str
+
+
+class DocumentationCoverage(BaseModel):
+    total: int = 0
+    documented: int = 0
+    undocumented_servers: list[UndocumentedServer] = []

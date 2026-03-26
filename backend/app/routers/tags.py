@@ -51,31 +51,32 @@ async def batch_assign_tags(request: Request, body: BatchTagRequest, db: AsyncSe
     if len(body.tag_ids) > 50:
         raise HTTPException(400, "Maximum 50 tags per request")
 
-    count = 0
-    skipped = 0
     errors: list[str] = []
-    for server_id in body.server_ids:
-        for tag_id in body.tag_ids:
-            try:
-                if body.action == "assign":
-                    await tag_crud.add_tag_to_server(db, server_id, tag_id)
-                else:
-                    await tag_crud.remove_tag_from_server(db, server_id, tag_id)
-                count += 1
-                tag = await tag_crud.get(db, tag_id)
-                tag_name = tag.name if tag else f"Tag #{tag_id}"
-                try:
-                    await activity_crud.log_activity(
-                        db, "tag", tag_id, tag_name,
-                        "assigned" if body.action == "assign" else "unassigned",
-                        {"server_id": str(server_id)}
-                    )
-                except Exception:
-                    logger.warning("Failed to log activity for batch tag %s", tag_id, exc_info=True)
-            except Exception as e:
-                skipped += 1
-                errors.append(f"Tag {tag_id} / Server {server_id}: {type(e).__name__}")
-                continue
+    try:
+        if body.action == "assign":
+            count = await tag_crud.bulk_add_tags_to_servers(db, body.server_ids, body.tag_ids)
+        else:
+            count = await tag_crud.bulk_remove_tags_from_servers(db, body.server_ids, body.tag_ids)
+    except Exception as e:
+        errors.append(f"Bulk operation failed: {type(e).__name__}")
+        return {"status": "error", "count": 0, "skipped": 0, "errors": errors}
+
+    # Log activity for each tag (batch, not per-server)
+    tags = await tag_crud.get_multi_by_ids(db, body.tag_ids)
+    tag_names = {t.id: t.name for t in tags}
+    action = "assigned" if body.action == "assign" else "unassigned"
+    for tag_id in body.tag_ids:
+        tag_name = tag_names.get(tag_id, f"Tag #{tag_id}")
+        try:
+            await activity_crud.log_activity(
+                db, "tag", tag_id, tag_name, action,
+                {"server_ids": ",".join(str(s) for s in body.server_ids)}
+            )
+        except Exception:
+            logger.warning("Failed to log activity for batch tag %s", tag_id, exc_info=True)
+
+    total_pairs = len(body.server_ids) * len(body.tag_ids)
+    skipped = total_pairs - count
     return {"status": "ok", "count": count, "skipped": skipped, "errors": errors}
 
 

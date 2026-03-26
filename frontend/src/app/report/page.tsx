@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useData } from '@/hooks/useData';
 import { api } from '@/lib/api';
@@ -40,6 +40,15 @@ function ReportSkeleton() {
   );
 }
 
+function SectionSkeleton({ title }: { title: string }) {
+  return (
+    <section className="mb-8 report-section">
+      <h2 className="mb-3 text-lg font-semibold text-gray-900">{title}</h2>
+      <div className="animate-pulse bg-gray-100 rounded h-32" />
+    </section>
+  );
+}
+
 function formatOverdueDuration(hours: number): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
@@ -48,17 +57,64 @@ function formatOverdueDuration(hours: number): string {
 }
 
 export default function ReportPage() {
-  const { data: stats } = useData(() => api.getDashboardStats());
-  const { data: costSummary } = useData(() => api.getCostSummary());
-  const { data: serversResult } = useData(() => api.listServers({ limit: 500 }));
-  const { data: backupCoverage } = useData(() => api.getBackupCoverage());
-  const { data: applicationsResult } = useData(() => api.listApplications({ limit: 500 }));
-  const { data: connectionsResult } = useData(() => api.listSshConnections({ limit: 500 }));
-  const { data: tagsResult } = useData(() => api.listTags());
+  // --- Tier 1: Small summary data (loads immediately) ---
+  const { data: stats, loading: statsLoading } = useData(() => api.getDashboardStats());
+  const { data: costSummary, loading: costSummaryLoading } = useData(() => api.getCostSummary());
+  const { data: backupCoverage, loading: backupCoverageLoading } = useData(() => api.getBackupCoverage());
+
+  // --- Tier readiness states ---
+  const [tier1Ready, setTier1Ready] = useState(false);
+  const [tier2Ready, setTier2Ready] = useState(false);
+
+  useEffect(() => {
+    if (!statsLoading && !costSummaryLoading && !backupCoverageLoading && stats && costSummary) {
+      setTier1Ready(true);
+    }
+  }, [stats, costSummary, backupCoverage, statsLoading, costSummaryLoading, backupCoverageLoading]);
+
+  // --- Tier 2: Large datasets (loads after Tier 1) ---
+  const { data: serversResult, loading: serversLoading } = useData(
+    () => tier1Ready ? api.listServers({ limit: 500 }) : Promise.resolve(null),
+    [tier1Ready]
+  );
+  const { data: applicationsResult, loading: applicationsLoading } = useData(
+    () => tier1Ready ? api.listApplications({ limit: 500 }) : Promise.resolve(null),
+    [tier1Ready]
+  );
+  const { data: backupsResult, loading: backupsLoading } = useData(
+    () => tier1Ready ? api.listBackups({ limit: 500 }) : Promise.resolve(null),
+    [tier1Ready]
+  );
+  const { data: connectionsResult, loading: connectionsLoading } = useData(
+    () => tier1Ready ? api.listSshConnections({ limit: 500 }) : Promise.resolve(null),
+    [tier1Ready]
+  );
+  const { data: tagsResult, loading: tagsLoading } = useData(
+    () => tier1Ready ? api.listTags() : Promise.resolve(null),
+    [tier1Ready]
+  );
   const tags = tagsResult?.items ?? [];
-  const { data: backupsResult } = useData(() => api.listBackups({ limit: 500 }));
-  const { data: overdueBackups } = useData(() => api.getOverdueBackups());
-  const { data: costByTag } = useData(() => api.getCostByTag());
+
+  useEffect(() => {
+    if (
+      tier1Ready &&
+      !serversLoading && !applicationsLoading && !backupsLoading &&
+      !connectionsLoading && !tagsLoading &&
+      serversResult !== null
+    ) {
+      setTier2Ready(true);
+    }
+  }, [tier1Ready, serversResult, applicationsResult, backupsResult, connectionsResult, tagsResult, serversLoading, applicationsLoading, backupsLoading, connectionsLoading, tagsLoading]);
+
+  // --- Tier 3: Secondary analytics (loads after Tier 2) ---
+  const { data: overdueBackups } = useData(
+    () => tier2Ready ? api.getOverdueBackups() : Promise.resolve(null),
+    [tier2Ready]
+  );
+  const { data: costByTag } = useData(
+    () => tier2Ready ? api.getCostByTag() : Promise.resolve(null),
+    [tier2Ready]
+  );
 
   const [filterProvider, setFilterProvider] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -141,6 +197,7 @@ export default function ReportPage() {
     second: '2-digit',
   });
 
+  // Show full skeleton only while Tier 1 is loading
   if (!stats || !costSummary) return <ReportSkeleton />;
 
   // Executive Summary findings
@@ -162,6 +219,9 @@ export default function ReportPage() {
     findings.push({ text: `${stats.failing_backups} backup${stats.failing_backups !== 1 ? 's' : ''} in failed state`, critical: true });
   }
   const allClear = findings.length === 0;
+
+  // Whether tier 2 data is still loading
+  const tier2Loading = !serversResult || !applicationsResult || !backupsResult || !connectionsResult || !tagsResult;
 
   return (
     <div className="mx-auto max-w-4xl p-8 print:p-0 print:text-sm">
@@ -185,6 +245,34 @@ export default function ReportPage() {
         <p className="mt-1 text-sm text-gray-500">Generated on {dateWithDay}</p>
         <hr className="mt-4 border-gray-200" />
       </div>
+
+      {/* Executive Summary */}
+      <section className={`mb-8 report-section print-keep-together ${allClear ? 'border-l-4 border-green-500 bg-green-50 p-4 rounded-r-lg' : 'border-l-4 border-red-500 bg-red-50 p-4 rounded-r-lg'}`}>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">
+          {allClear ? 'All Systems Operational' : `${findings.length} Critical Finding${findings.length !== 1 ? 's' : ''}`}
+        </h2>
+        {allClear ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 print-color-exact" />
+            <span className="text-sm font-medium text-green-800">No critical findings. All systems operational.</span>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {findings.map((finding, i) => (
+              <li key={i} className={`flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium ${
+                finding.critical
+                  ? 'border-red-200 bg-red-50 text-red-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+              }`}>
+                <span className={`inline-block h-2 w-2 rounded-full print-color-exact ${
+                  finding.critical ? 'bg-red-500' : 'bg-amber-500'
+                }`} />
+                {finding.text}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Filters - hidden in print */}
       <div className="mb-6 flex flex-wrap gap-4" data-no-print>
@@ -247,32 +335,6 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* Executive Summary */}
-      <section className="mb-8 report-section">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Executive Summary</h2>
-        {allClear ? (
-          <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 px-4 py-3">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 print-color-exact" />
-            <span className="text-sm font-medium text-green-800">All systems operational. No critical findings.</span>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {findings.map((finding, i) => (
-              <li key={i} className={`flex items-center gap-2 rounded border px-4 py-2 text-sm font-medium ${
-                finding.critical
-                  ? 'border-red-200 bg-red-50 text-red-800'
-                  : 'border-amber-200 bg-amber-50 text-amber-800'
-              }`}>
-                <span className={`inline-block h-2 w-2 rounded-full print-color-exact ${
-                  finding.critical ? 'bg-red-500' : 'bg-amber-500'
-                }`} />
-                {finding.text}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
       {/* Summary */}
       <section className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Summary</h2>
@@ -294,7 +356,7 @@ export default function ReportPage() {
             <p className="text-sm text-gray-500">SSH Keys</p>
           </div>
           <div className="rounded border p-3">
-            <p className="text-2xl font-bold">{connections.length}</p>
+            <p className="text-2xl font-bold">{tier2Loading ? '...' : connections.length}</p>
             <p className="text-sm text-gray-500">Connections</p>
           </div>
           <div className="rounded border p-3">
@@ -304,8 +366,74 @@ export default function ReportPage() {
         </div>
       </section>
 
+      {/* Cost Breakdown */}
+      <section className="mb-8 report-section">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost Breakdown</h2>
+        {costSummary.totals_by_currency.length > 0 ? (
+          <div className="mb-4 flex gap-4">
+            {costSummary.totals_by_currency.map((t) => (
+              <div key={t.currency} className="rounded border p-3">
+                <p className="text-xl font-bold">{formatCost(t.amount, t.currency)}</p>
+                <p className="text-sm text-gray-500">Total {t.currency}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">No cost data available.</p>
+        )}
+        {costSummary.by_provider.length > 0 && (
+          <table className="w-full text-sm print:text-xs border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2 text-left font-medium">Provider</th>
+                <th className="py-2 text-right font-medium">Servers</th>
+                <th className="py-2 text-right font-medium">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costSummary.by_provider.map((item, i) => (
+                <tr key={i} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
+                  <td className="py-2">{item.provider_name}</td>
+                  <td className="py-2 text-right">{item.server_count}</td>
+                  <td className="py-2 text-right font-mono">{formatCost(item.total_cost, item.currency)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Backup Health (Tier 1 data) */}
+      {backupCoverage && (
+        <section className="mb-8 report-section">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Health</h2>
+          <p className="text-sm">
+            {backupCoverage.covered_applications} of {backupCoverage.total_applications} applications covered.
+            {backupCoverage.failed_backups_24h > 0 && (
+              <span className="ml-2 font-semibold text-red-600">
+                {backupCoverage.failed_backups_24h} failed in last 24h.
+              </span>
+            )}
+          </p>
+          {backupCoverage.uncovered_applications.length > 0 && (
+            <div className="mt-2">
+              <p className="text-sm font-medium text-gray-700">Uncovered applications:</p>
+              <ul className="mt-1 list-inside list-disc text-sm text-gray-600">
+                {backupCoverage.uncovered_applications.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* --- Tier 2 sections: Show skeletons until data arrives --- */}
+
       {/* D14: Resource Summary */}
-      {servers.length > 0 && (
+      {tier2Loading ? (
+        <SectionSkeleton title="Resource Summary" />
+      ) : servers.length > 0 ? (
         <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Resource Summary</h2>
           <div className="mb-4 grid grid-cols-3 gap-4">
@@ -367,8 +495,8 @@ export default function ReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(resourcesByProvider).map(([name, res]) => (
-                  <tr key={name} className="border-b">
+                {Object.entries(resourcesByProvider).map(([name, res], i) => (
+                  <tr key={name} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
                     <td className="py-2">{name}</td>
                     <td className="py-2 text-right">{res.count}</td>
                     <td className="py-2 text-right">{res.cpu}</td>
@@ -380,47 +508,196 @@ export default function ReportPage() {
             </table>
           )}
         </section>
-      )}
+      ) : null}
 
-      {/* Cost Breakdown */}
-      <section className="mb-8 report-section">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost Breakdown</h2>
-        {costSummary.totals_by_currency.length > 0 ? (
-          <div className="mb-4 flex gap-4">
-            {costSummary.totals_by_currency.map((t) => (
-              <div key={t.currency} className="rounded border p-3">
-                <p className="text-xl font-bold">{formatCost(t.amount, t.currency)}</p>
-                <p className="text-sm text-gray-500">Total {t.currency}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">No cost data available.</p>
-        )}
-        {costSummary.by_provider.length > 0 && (
+      {/* Server Inventory */}
+      {tier2Loading ? (
+        <SectionSkeleton title="Server Inventory" />
+      ) : (
+        <section className="mb-8 report-section">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Server Inventory</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
             <thead>
               <tr className="border-b">
+                <th className="py-2 text-left font-medium">Name</th>
+                <th className="py-2 text-left font-medium">Status</th>
+                <th className="py-2 text-left font-medium">Health</th>
                 <th className="py-2 text-left font-medium">Provider</th>
-                <th className="py-2 text-right font-medium">Servers</th>
+                <th className="py-2 text-left font-medium">IPv4</th>
+                <th className="py-2 text-left font-medium">Hostname</th>
+                <th className="py-2 text-left font-medium">Location</th>
+                <th className="py-2 text-left font-medium">Tags</th>
+                <th className="py-2 text-left font-medium">OS</th>
+                <th className="py-2 text-right font-medium">CPU</th>
+                <th className="py-2 text-right font-medium">RAM</th>
+                <th className="py-2 text-right font-medium">Disk</th>
                 <th className="py-2 text-right font-medium">Cost</th>
               </tr>
             </thead>
             <tbody>
-              {costSummary.by_provider.map((item, i) => (
-                <tr key={i} className="border-b">
-                  <td className="py-2">{item.provider_name}</td>
-                  <td className="py-2 text-right">{item.server_count}</td>
-                  <td className="py-2 text-right font-mono">{formatCost(item.total_cost, item.currency)}</td>
+              {servers.map((s, i) => (
+                <tr key={s.id} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
+                  <td className="py-2">{s.name}</td>
+                  <td className="py-2"><StatusBadge status={s.status} /></td>
+                  <td className="py-2">
+                    {/* C12: aria-label for health status */}
+                    <span className="flex items-center gap-1">
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full print-color-exact ${
+                          s.last_check_status === 'healthy' ? 'bg-green-500' :
+                          s.last_check_status === 'unhealthy' ? 'bg-red-500' :
+                          'bg-gray-300'
+                        }`}
+                        aria-label={`Health status: ${
+                          s.last_check_status === 'healthy' ? 'Healthy' :
+                          s.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                          'Unknown'
+                        }`}
+                        role="img"
+                      />
+                      <span className="text-xs">
+                        {s.last_check_status === 'healthy' ? 'Healthy' :
+                         s.last_check_status === 'unhealthy' ? 'Unhealthy' :
+                         'Unknown'}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="py-2">{s.provider_name || '\u2014'}</td>
+                  <td className="py-2 font-mono text-xs">{s.ip_v4 || '\u2014'}</td>
+                  <td className="py-2 text-xs">{s.hostname || '\u2014'}</td>
+                  <td className="py-2">{s.location || '\u2014'}</td>
+                  <td className="py-2 text-xs">{(s.tags || []).map(t => t.name).join(', ') || '\u2014'}</td>
+                  <td className="py-2">{s.os || '\u2014'}</td>
+                  <td className="py-2 text-right">{s.cpu_cores ?? '\u2014'}</td>
+                  <td className="py-2 text-right">{formatRAM(s.ram_mb)}</td>
+                  <td className="py-2 text-right">{formatDisk(s.disk_gb)}</td>
+                  <td className="py-2 text-right font-mono">{s.monthly_cost != null ? formatCost(s.monthly_cost, s.cost_currency) : '\u2014'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
-      </section>
+        </section>
+      )}
+
+      {/* Application Inventory */}
+      {tier2Loading ? (
+        <SectionSkeleton title="Application Inventory" />
+      ) : (
+        <section className="mb-8 report-section">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Application Inventory</h2>
+          {applications.length > 0 ? (
+            <table className="w-full text-sm print:text-xs border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-2 text-left font-medium">Name</th>
+                  <th className="py-2 text-left font-medium">Server</th>
+                  <th className="py-2 text-left font-medium">Type</th>
+                  <th className="py-2 text-right font-medium">Port</th>
+                  <th className="py-2 text-left font-medium">Status</th>
+                  <th className="py-2 text-left font-medium">URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map((app, i) => (
+                  <tr key={app.id} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
+                    <td className="py-2">{app.name}</td>
+                    <td className="py-2">{app.server_name || '\u2014'}</td>
+                    <td className="py-2">{app.app_type || '\u2014'}</td>
+                    <td className="py-2 text-right">{app.port ?? '\u2014'}</td>
+                    <td className="py-2"><StatusBadge status={app.status} /></td>
+                    <td className="py-2 max-w-[200px] truncate">{app.url || '\u2014'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-gray-500">No applications yet.</p>
+          )}
+        </section>
+      )}
+
+      {/* SSH Connection Topology */}
+      {tier2Loading ? (
+        <SectionSkeleton title="SSH Connection Topology" />
+      ) : (
+        <section className="mb-8 report-section">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">SSH Connection Topology</h2>
+          {connections.length > 0 ? (
+            <>
+              <p className="mb-2 text-sm text-gray-600">
+                {connections.length} connection{connections.length !== 1 ? 's' : ''} between{' '}
+                {uniqueConnectionServers.size} server{uniqueConnectionServers.size !== 1 ? 's' : ''}
+              </p>
+              <table className="w-full text-sm print:text-xs border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 text-left font-medium">Source Server</th>
+                    <th className="py-2 text-left font-medium">Target Server</th>
+                    <th className="py-2 text-left font-medium">User</th>
+                    <th className="py-2 text-right font-medium">Port</th>
+                    <th className="py-2 text-left font-medium">Purpose</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {connections.map((conn, i) => (
+                    <tr key={conn.id} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
+                      <td className="py-2">{conn.source_server_name || '\u2014'}</td>
+                      <td className="py-2">{conn.target_server_name || '\u2014'}</td>
+                      <td className="py-2">{conn.ssh_user || '\u2014'}</td>
+                      <td className="py-2 text-right">{conn.ssh_port}</td>
+                      <td className="py-2">{conn.purpose || '\u2014'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">No SSH connections yet.</p>
+          )}
+        </section>
+      )}
+
+      {/* Tag Distribution */}
+      {tier2Loading ? (
+        <SectionSkeleton title="Tag Distribution" />
+      ) : (
+        <section className="mb-8 report-section">
+          <h2 className="mb-3 text-lg font-semibold text-gray-900">Tag Distribution</h2>
+          {tags.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium"
+                  style={{
+                    backgroundColor: tag.color + '20',
+                    color: tag.color,
+                    border: `1px solid ${tag.color}40`,
+                  }}
+                >
+                  <span
+                    className="inline-block h-2 w-2 rounded-full print-color-exact"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                  {tag.name}
+                  <span className="ml-1 text-xs opacity-75">
+                    ({tagServerCounts[tag.id] || 0} server{(tagServerCounts[tag.id] || 0) !== 1 ? 's' : ''})
+                  </span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No tags yet.</p>
+          )}
+        </section>
+      )}
+
+      {/* --- Tier 3 sections: Show skeletons until data arrives --- */}
 
       {/* Cost by Tag */}
-      {costByTag && costByTag.length > 0 && (
+      {!tier2Ready ? (
+        <SectionSkeleton title="Cost by Tag" />
+      ) : costByTag && costByTag.length > 0 ? (
         <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost by Tag</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
@@ -433,7 +710,7 @@ export default function ReportPage() {
             </thead>
             <tbody>
               {costByTag.map((item, i) => (
-                <tr key={i} className="border-b">
+                <tr key={i} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
                   <td className="py-2">
                     <span className="inline-flex items-center gap-2">
                       <span className="inline-block h-2.5 w-2.5 rounded-full print-color-exact" style={{ backgroundColor: item.tag_color }} />
@@ -447,199 +724,12 @@ export default function ReportPage() {
             </tbody>
           </table>
         </section>
-      )}
-
-      {/* Server Inventory */}
-      <section className="mb-8 report-section">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Server Inventory</h2>
-        <table className="w-full text-sm print:text-xs border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 text-left font-medium">Name</th>
-              <th className="py-2 text-left font-medium">Status</th>
-              <th className="py-2 text-left font-medium">Health</th>
-              <th className="py-2 text-left font-medium">Provider</th>
-              <th className="py-2 text-left font-medium">IPv4</th>
-              <th className="py-2 text-left font-medium">Hostname</th>
-              <th className="py-2 text-left font-medium">Location</th>
-              <th className="py-2 text-left font-medium">OS</th>
-              <th className="py-2 text-right font-medium">CPU</th>
-              <th className="py-2 text-right font-medium">RAM</th>
-              <th className="py-2 text-right font-medium">Disk</th>
-              <th className="py-2 text-right font-medium">Cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {servers.map((s) => (
-              <tr key={s.id} className="border-b">
-                <td className="py-2">{s.name}</td>
-                <td className="py-2"><StatusBadge status={s.status} /></td>
-                <td className="py-2">
-                  {/* C12: aria-label for health status */}
-                  <span className="flex items-center gap-1">
-                    <span
-                      className={`inline-block h-2 w-2 rounded-full print-color-exact ${
-                        s.last_check_status === 'healthy' ? 'bg-green-500' :
-                        s.last_check_status === 'unhealthy' ? 'bg-red-500' :
-                        'bg-gray-300'
-                      }`}
-                      aria-label={`Health status: ${
-                        s.last_check_status === 'healthy' ? 'Healthy' :
-                        s.last_check_status === 'unhealthy' ? 'Unhealthy' :
-                        'Unknown'
-                      }`}
-                      role="img"
-                    />
-                    <span className="text-xs">
-                      {s.last_check_status === 'healthy' ? 'Healthy' :
-                       s.last_check_status === 'unhealthy' ? 'Unhealthy' :
-                       'Unknown'}
-                    </span>
-                  </span>
-                </td>
-                <td className="py-2">{s.provider_name || '\u2014'}</td>
-                <td className="py-2 font-mono text-xs">{s.ip_v4 || '\u2014'}</td>
-                <td className="py-2 text-xs">{s.hostname || '\u2014'}</td>
-                <td className="py-2">{s.location || '\u2014'}</td>
-                <td className="py-2">{s.os || '\u2014'}</td>
-                <td className="py-2 text-right">{s.cpu_cores ?? '\u2014'}</td>
-                <td className="py-2 text-right">{formatRAM(s.ram_mb)}</td>
-                <td className="py-2 text-right">{formatDisk(s.disk_gb)}</td>
-                <td className="py-2 text-right font-mono">{s.monthly_cost != null ? formatCost(s.monthly_cost, s.cost_currency) : '\u2014'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      {/* Application Inventory */}
-      <section className="mb-8 report-section">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Application Inventory</h2>
-        {applications.length > 0 ? (
-          <table className="w-full text-sm print:text-xs border-collapse">
-            <thead>
-              <tr className="border-b">
-                <th className="py-2 text-left font-medium">Name</th>
-                <th className="py-2 text-left font-medium">Server</th>
-                <th className="py-2 text-left font-medium">Type</th>
-                <th className="py-2 text-right font-medium">Port</th>
-                <th className="py-2 text-left font-medium">Status</th>
-                <th className="py-2 text-left font-medium">URL</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applications.map((app) => (
-                <tr key={app.id} className="border-b">
-                  <td className="py-2">{app.name}</td>
-                  <td className="py-2">{app.server_name || '\u2014'}</td>
-                  <td className="py-2">{app.app_type || '\u2014'}</td>
-                  <td className="py-2 text-right">{app.port ?? '\u2014'}</td>
-                  <td className="py-2"><StatusBadge status={app.status} /></td>
-                  <td className="py-2 max-w-[200px] truncate">{app.url || '\u2014'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="text-sm text-gray-500">No applications yet.</p>
-        )}
-      </section>
-
-      {/* SSH Connection Topology */}
-      <section className="mb-8 report-section">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">SSH Connection Topology</h2>
-        {connections.length > 0 ? (
-          <>
-            <p className="mb-2 text-sm text-gray-600">
-              {connections.length} connection{connections.length !== 1 ? 's' : ''} between{' '}
-              {uniqueConnectionServers.size} server{uniqueConnectionServers.size !== 1 ? 's' : ''}
-            </p>
-            <table className="w-full text-sm print:text-xs border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2 text-left font-medium">Source Server</th>
-                  <th className="py-2 text-left font-medium">Target Server</th>
-                  <th className="py-2 text-left font-medium">User</th>
-                  <th className="py-2 text-right font-medium">Port</th>
-                  <th className="py-2 text-left font-medium">Purpose</th>
-                </tr>
-              </thead>
-              <tbody>
-                {connections.map((conn) => (
-                  <tr key={conn.id} className="border-b">
-                    <td className="py-2">{conn.source_server_name || '\u2014'}</td>
-                    <td className="py-2">{conn.target_server_name || '\u2014'}</td>
-                    <td className="py-2">{conn.ssh_user || '\u2014'}</td>
-                    <td className="py-2 text-right">{conn.ssh_port}</td>
-                    <td className="py-2">{conn.purpose || '\u2014'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : (
-          <p className="text-sm text-gray-500">No SSH connections yet.</p>
-        )}
-      </section>
-
-      {/* Tag Distribution */}
-      <section className="mb-8 report-section">
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">Tag Distribution</h2>
-        {tags.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <span
-                key={tag.id}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium"
-                style={{
-                  backgroundColor: tag.color + '20',
-                  color: tag.color,
-                  border: `1px solid ${tag.color}40`,
-                }}
-              >
-                <span
-                  className="inline-block h-2 w-2 rounded-full print-color-exact"
-                  style={{ backgroundColor: tag.color }}
-                />
-                {tag.name}
-                <span className="ml-1 text-xs opacity-75">
-                  ({tagServerCounts[tag.id] || 0} server{(tagServerCounts[tag.id] || 0) !== 1 ? 's' : ''})
-                </span>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500">No tags yet.</p>
-        )}
-      </section>
-
-      {/* Backup Health */}
-      {backupCoverage && (
-        <section className="mb-8 report-section">
-          <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Health</h2>
-          <p className="text-sm">
-            {backupCoverage.covered_applications} of {backupCoverage.total_applications} applications covered.
-            {backupCoverage.failed_backups_24h > 0 && (
-              <span className="ml-2 font-semibold text-red-600">
-                {backupCoverage.failed_backups_24h} failed in last 24h.
-              </span>
-            )}
-          </p>
-          {backupCoverage.uncovered_applications.length > 0 && (
-            <div className="mt-2">
-              <p className="text-sm font-medium text-gray-700">Uncovered applications:</p>
-              <ul className="mt-1 list-inside list-disc text-sm text-gray-600">
-                {backupCoverage.uncovered_applications.map((name) => (
-                  <li key={name}>{name}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
-      )}
+      ) : null}
 
       {/* C13 + D17: Overdue Backups detail section */}
-      {overdueBackups && overdueBackups.length > 0 && (
+      {!tier2Ready ? (
+        <SectionSkeleton title="Overdue Backups" />
+      ) : overdueBackups && overdueBackups.length > 0 ? (
         <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Overdue Backups</h2>
           <p className="mb-3 text-sm text-red-600 font-medium">
@@ -656,8 +746,8 @@ export default function ReportPage() {
               </tr>
             </thead>
             <tbody>
-              {overdueBackups.map((b: OverdueBackup) => (
-                <tr key={b.id} className="border-b">
+              {overdueBackups.map((b: OverdueBackup, i: number) => (
+                <tr key={b.id} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
                   <td className="py-2 font-medium">{b.name}</td>
                   <td className="py-2">{b.source_server_name || '\u2014'}</td>
                   <td className="py-2 capitalize">{b.frequency}</td>
@@ -677,10 +767,12 @@ export default function ReportPage() {
             </tbody>
           </table>
         </section>
-      )}
+      ) : null}
 
       {/* Backup Schedule */}
-      {backups.length > 0 && (
+      {tier2Loading ? (
+        <SectionSkeleton title="Backup Schedule" />
+      ) : backups.length > 0 ? (
         <section className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Schedule</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
@@ -696,8 +788,8 @@ export default function ReportPage() {
               </tr>
             </thead>
             <tbody>
-              {backups.map((b) => (
-                <tr key={b.id} className="border-b">
+              {backups.map((b, i) => (
+                <tr key={b.id} className={`border-b ${i % 2 === 1 ? 'bg-gray-50' : ''}`}>
                   <td className="py-2">{b.name}</td>
                   <td className="py-2">{b.source_server_name || '\u2014'}</td>
                   <td className="py-2">{b.application_name || '\u2014'}</td>
@@ -710,7 +802,7 @@ export default function ReportPage() {
             </tbody>
           </table>
         </section>
-      )}
+      ) : null}
 
       {/* Print-only footer */}
       <footer className="hidden print:block print:fixed print:bottom-0 print:left-0 print:right-0 border-t border-gray-300 pt-2 text-xs text-gray-400 bg-white">

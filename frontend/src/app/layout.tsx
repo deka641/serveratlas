@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
 import CommandPalette from '@/components/CommandPalette';
+import KeyboardShortcutsHelp from '@/components/KeyboardShortcutsHelp';
 import { ToastProvider } from '@/components/ui/Toast';
 import { MobileSidebarContext } from '@/components/MobileSidebarContext';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
@@ -41,6 +42,7 @@ export default function RootLayout({
                 <ErrorBoundary>{children}</ErrorBoundary>
               </div>
               <CommandPalette />
+              <KeyboardShortcutsHelp />
             </div>
           </MobileSidebarContext.Provider>
         </ToastProvider>

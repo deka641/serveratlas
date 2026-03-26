@@ -1,7 +1,8 @@
 import logging
 from typing import Any, Callable, Awaitable
 
-from pydantic import BaseModel
+from fastapi import HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.activity import activity_crud
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class BulkDeleteRequest(BaseModel):
-    ids: list[int]
+    ids: list[int] = Field(..., max_length=100)
 
 
 async def bulk_delete_entities(
@@ -21,8 +22,10 @@ async def bulk_delete_entities(
     name_getter: Callable[[Any], str] | None = None,
     entity_getter: Callable[[AsyncSession, int], Awaitable[Any]] | None = None,
 ) -> None:
-    """Generic bulk-delete with activity logging. Caps at 100 items."""
-    for entity_id in ids[:100]:
+    """Generic bulk-delete with activity logging. Maximum 100 items."""
+    if len(ids) > 100:
+        raise HTTPException(400, "Maximum 100 items per bulk delete request")
+    for entity_id in ids:
         getter = entity_getter or crud.get
         entity = await getter(db, entity_id)
         if entity:

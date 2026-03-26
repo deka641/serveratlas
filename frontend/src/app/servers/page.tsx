@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import PageContainer from '@/components/PageContainer';
 import Button from '@/components/ui/Button';
+import DropdownMenu from '@/components/ui/DropdownMenu';
 import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
 import EmptyState from '@/components/ui/EmptyState';
@@ -19,11 +20,14 @@ import Pagination from '@/components/ui/Pagination';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import TableSkeleton from '@/components/ui/TableSkeleton';
 import TagPickerModal from '@/components/domain/TagPickerModal';
+import BulkEditModal from '@/components/domain/BulkEditModal';
 import ServerImportModal from '@/components/domain/ServerImportModal';
+import SlidePanel from '@/components/ui/SlidePanel';
+import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { exportToCsv } from '@/lib/export';
-import type { Server, Tag } from '@/lib/types';
-import { formatCost } from '@/lib/formatters';
-import { formatRAM, formatDisk } from '@/lib/formatters';
+import type { Server, ServerDetail, Tag } from '@/lib/types';
+import { formatCost, formatDateTime, formatRAM, formatDisk } from '@/lib/formatters';
 
 function useTagOptions() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -55,9 +59,13 @@ function ServersPageContent() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [batchChecking, setBatchChecking] = useState(false);
+  const [previewServerId, setPreviewServerId] = useState<number | null>(null);
+  const [previewServer, setPreviewServer] = useState<ServerDetail | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [urlState, setUrlState] = useUrlState({
     status: '',
     provider: '',
@@ -122,7 +130,8 @@ function ServersPageContent() {
   const serverCsvColumns = [
     { key: 'name' as const, label: 'Name' },
     { key: 'hostname' as const, label: 'Hostname' },
-    { key: 'ip_v4' as const, label: 'IP' },
+    { key: 'ip_v4' as const, label: 'IPv4' },
+    { key: 'ip_v6' as const, label: 'IPv6' },
     { key: 'provider_name' as const, label: 'Provider' },
     { key: 'status' as const, label: 'Status' },
     { key: 'os' as const, label: 'OS' },
@@ -130,8 +139,13 @@ function ServersPageContent() {
     { key: 'ram_mb' as const, label: 'RAM', formatter: (s: Server) => formatRAM(s.ram_mb) },
     { key: 'disk_gb' as const, label: 'Disk', formatter: (s: Server) => formatDisk(s.disk_gb) },
     { key: 'location' as const, label: 'Location' },
+    { key: 'datacenter' as const, label: 'Datacenter' },
     { key: 'monthly_cost' as const, label: 'Monthly Cost', formatter: (s: Server) => formatCost(s.monthly_cost, s.cost_currency) },
+    { key: 'last_check_status' as const, label: 'Health Status' },
+    { key: 'last_checked_at' as const, label: 'Last Health Check', formatter: (s: Server) => s.last_checked_at ? formatDateTime(s.last_checked_at) : '' },
+    { key: 'login_user' as const, label: 'Login User' },
     { key: 'tags' as const, label: 'Tags', formatter: (s: Server) => (s.tags || []).map((t) => t.name).join(', ') },
+    { key: 'notes' as const, label: 'Notes' },
   ];
 
   function handleExportCsv() {
@@ -191,13 +205,22 @@ function ServersPageContent() {
     router.push(`/servers/compare?ids=${ids.join(',')}`);
   }
 
+  function handlePreview(serverId: number) {
+    setPreviewServerId(serverId);
+    setPreviewLoading(true);
+    api.getServer(serverId)
+      .then(setPreviewServer)
+      .catch(() => addToast('error', 'Failed to load server preview'))
+      .finally(() => setPreviewLoading(false));
+  }
+
   return (
     <PageContainer
       title="Servers"
       error={error}
       onRetry={refetch}
       action={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {selectedIds.size >= 2 && selectedIds.size <= 5 && (
             <Button variant="secondary" onClick={handleCompare}>Compare ({selectedIds.size})</Button>
           )}
@@ -205,12 +228,25 @@ function ServersPageContent() {
             <Button variant="secondary" onClick={() => setShowTagPicker(true)}>Tag ({selectedIds.size})</Button>
           )}
           {selectedIds.size > 0 && (
+            <Button variant="secondary" onClick={() => setShowBulkEdit(true)}>Edit ({selectedIds.size})</Button>
+          )}
+          {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleBatchHealthCheck} disabled={batchChecking}>{batchChecking ? 'Checking...' : 'Check All'}</Button>
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
-          <Button variant="secondary" onClick={() => setShowImport(true)}>Import CSV</Button>
+          <DropdownMenu label="More" variant="secondary">
+            <DropdownMenu.Item onClick={handleBatchHealthCheck} disabled={batchChecking}>
+              {batchChecking ? 'Checking...' : 'Check All'}
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onClick={handleExportCsv} disabled={exporting}>
+              {exporting ? 'Exporting...' : `Export Page (${servers?.length ?? 0})`}
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onClick={handleExportAll} disabled={exporting}>
+              {exporting ? 'Exporting...' : `Export All (${total})`}
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onClick={() => setShowImport(true)}>
+              Import CSV
+            </DropdownMenu.Item>
+          </DropdownMenu>
           <Link href="/servers/new">
             <Button>Add Server</Button>
           </Link>
@@ -272,7 +308,7 @@ function ServersPageContent() {
         <TableSkeleton columns={9} rows={8} />
       ) : servers && servers.length === 0 ? (
         <EmptyState
-          message="No servers found"
+          message={urlState.status || urlState.provider || urlState.tag || search ? 'No servers match your filters' : 'No servers yet'}
           description={
             urlState.status || urlState.provider || urlState.tag || search
               ? 'Try adjusting your filters.'
@@ -284,6 +320,7 @@ function ServersPageContent() {
           <ServerTable
             servers={servers ?? []}
             onDelete={handleDelete}
+            onPreview={handlePreview}
             selectable
             selectedIds={selectedIds}
             onSelectionChange={setSelectedIds}
@@ -313,6 +350,58 @@ function ServersPageContent() {
         onClose={() => setShowImport(false)}
         onComplete={refetch}
       />
+
+      <BulkEditModal
+        open={showBulkEdit}
+        onClose={() => setShowBulkEdit(false)}
+        serverIds={Array.from(selectedIds)}
+        onComplete={() => { refetch(); setSelectedIds(new Set()); }}
+      />
+
+      <SlidePanel
+        open={previewServerId !== null}
+        onClose={() => { setPreviewServerId(null); setPreviewServer(null); }}
+        title={previewServer?.name ?? 'Server Preview'}
+      >
+        {previewLoading ? (
+          <div className="animate-pulse space-y-4">
+            <div className="h-6 w-32 rounded bg-gray-200" />
+            <div className="h-24 rounded bg-gray-100" />
+          </div>
+        ) : previewServer ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <StatusBadge status={previewServer.status} />
+              {previewServer.last_check_status && (
+                <span className={`text-xs font-medium ${previewServer.last_check_status === 'healthy' ? 'text-green-700' : previewServer.last_check_status === 'unhealthy' ? 'text-red-700' : 'text-gray-500'}`}>
+                  {previewServer.last_check_status === 'healthy' ? 'Healthy' : previewServer.last_check_status === 'unhealthy' ? 'Unhealthy' : 'Unknown'}
+                </span>
+              )}
+            </div>
+            {previewServer.ip_v4 && <p className="text-sm text-gray-600"><span className="font-medium">IP:</span> {previewServer.ip_v4}</p>}
+            {previewServer.provider_name && <p className="text-sm text-gray-600"><span className="font-medium">Provider:</span> {previewServer.provider_name}</p>}
+            {previewServer.location && <p className="text-sm text-gray-600"><span className="font-medium">Location:</span> {previewServer.location}</p>}
+            {previewServer.documentation ? (
+              <div>
+                <h4 className="mb-1 text-sm font-medium text-gray-700">Documentation</h4>
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+                  <MarkdownRenderer content={previewServer.documentation} />
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No documentation</p>
+            )}
+            <div className="flex gap-2 border-t pt-3">
+              <Link href={`/servers/${previewServer.id}`}>
+                <Button size="sm">View Details</Button>
+              </Link>
+              <Link href={`/servers/${previewServer.id}/edit`}>
+                <Button variant="secondary" size="sm">Edit</Button>
+              </Link>
+            </div>
+          </div>
+        ) : null}
+      </SlidePanel>
     </PageContainer>
   );
 }

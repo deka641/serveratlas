@@ -56,7 +56,8 @@
 
   nav, header button, [data-no-print] { display: none !important; }
   .shadow-sm, .shadow-md { box-shadow: none !important; }
-  .bg-gray-50, .bg-gray-100 { background: white !important; }
+  .bg-gray-100 { background: white !important; }
+  .bg-gray-50 { background-color: #f9fafb !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 
   /* D15: Table headers repeat on every printed page */
   thead { display: table-header-group; }

@@ -39,3 +39,29 @@ export function exportToCsv<T>(data: T[], columns: CsvColumn<T>[], filename: str
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+}
+
+export async function exportAllPaginatedCsv<T>(
+  fetcher: (skip: number, limit: number) => Promise<PaginatedResponse<T>>,
+  columns: CsvColumn<T>[],
+  filename: string,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<number> {
+  const PAGE = 500;
+  const first = await fetcher(0, PAGE);
+  const allItems = [...first.items];
+  onProgress?.(allItems.length, first.total);
+
+  while (allItems.length < first.total) {
+    const next = await fetcher(allItems.length, PAGE);
+    allItems.push(...next.items);
+    onProgress?.(allItems.length, first.total);
+  }
+
+  exportToCsv(allItems, columns, filename);
+  return allItems.length;
+}

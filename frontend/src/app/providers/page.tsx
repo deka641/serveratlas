@@ -104,8 +104,8 @@ function ProvidersPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : `Export Page (${providers?.length ?? 0})`}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : `Export All (${total > 500 ? '500/' : ''}${total})`}</Button>
           <Link href="/providers/new">
             <Button>Add Provider</Button>
           </Link>
@@ -145,8 +145,8 @@ function ProvidersPageContent() {
         </>
       ) : (
         <EmptyState
-          message={searchTerm ? 'No providers match your search' : 'No providers yet'}
-          description={searchTerm ? 'Try a different search term.' : 'Get started by adding your first provider.'}
+          message={searchTerm ? 'No providers match your filters' : 'No providers yet'}
+          description={searchTerm ? 'Try adjusting your filters.' : 'Get started by adding your first provider.'}
           actionLabel={searchTerm ? undefined : 'Add Provider'}
           onAction={searchTerm ? undefined : () => {
             window.location.href = '/providers/new';

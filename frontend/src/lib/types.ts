@@ -245,3 +245,19 @@ export interface BatchHealthCheckResult {
   skipped: number;
   errors: string[];
 }
+
+export interface UndocumentedServer {
+  id: number;
+  name: string;
+}
+
+export interface DocumentationCoverage {
+  total: number;
+  documented: number;
+  undocumented_servers: UndocumentedServer[];
+}
+
+export interface BulkUpdateResult {
+  updated: number;
+  errors: string[];
+}

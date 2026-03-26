@@ -5,16 +5,16 @@ from pydantic import BaseModel, Field
 
 
 class BackupBase(BaseModel):
-    name: str
+    name: str = Field(..., max_length=255)
     application_id: int | None = None
     source_server_id: int
     target_server_id: int | None = None
     frequency: Literal["hourly", "daily", "weekly", "monthly", "manual"] = "daily"
     retention_days: int | None = Field(None, ge=1, le=3650)
-    storage_path: str | None = None
+    storage_path: str | None = Field(None, max_length=512)
     last_run_at: datetime | None = None
     last_run_status: Literal["success", "failed", "running", "never_run"] = "never_run"
-    notes: str | None = None
+    notes: str | None = Field(None, max_length=2000)
 
 
 class BackupCreate(BackupBase):
@@ -22,16 +22,16 @@ class BackupCreate(BackupBase):
 
 
 class BackupUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(None, max_length=255)
     application_id: int | None = None
     source_server_id: int | None = None
     target_server_id: int | None = None
     frequency: Literal["hourly", "daily", "weekly", "monthly", "manual"] | None = None
     retention_days: int | None = Field(None, ge=1, le=3650)
-    storage_path: str | None = None
+    storage_path: str | None = Field(None, max_length=512)
     last_run_at: datetime | None = None
     last_run_status: Literal["success", "failed", "running", "never_run"] | None = None
-    notes: str | None = None
+    notes: str | None = Field(None, max_length=2000)
 
 
 class BackupRead(BackupBase):

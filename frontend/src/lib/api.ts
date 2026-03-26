@@ -68,8 +68,8 @@ async function requestPaginated<T>(path: string, options?: RequestInit): Promise
 }
 
 import type {
-  Activity, Application, Backup, BackupCoverage, BatchHealthCheckResult, ConnectivityGraph, CostByTag, CostSummary,
-  DashboardStats, HealthSummary, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
+  Activity, Application, Backup, BackupCoverage, BatchHealthCheckResult, BulkUpdateResult, ConnectivityGraph, CostByTag, CostSummary,
+  DashboardStats, DocumentationCoverage, HealthSummary, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
   ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag,
 } from './types';
 
@@ -239,4 +239,9 @@ export const api = {
     request<Server>(`/servers/${id}/run-health-check`, { method: 'POST' }),
   batchHealthCheck: () =>
     request<BatchHealthCheckResult>('/servers/batch-health-check', { method: 'POST' }),
+  bulkUpdateServers: (ids: number[], updates: Record<string, string | number | null>) =>
+    request<BulkUpdateResult>('/servers/bulk-update', { method: 'POST', body: JSON.stringify({ ids, updates }) }),
+
+  // Documentation coverage
+  getDocumentationCoverage: () => request<DocumentationCoverage>('/dashboard/documentation-coverage'),
 };

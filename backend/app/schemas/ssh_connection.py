@@ -7,10 +7,10 @@ class SshConnectionBase(BaseModel):
     source_server_id: int
     target_server_id: int
     ssh_key_id: int | None = None
-    ssh_user: str | None = None
+    ssh_user: str | None = Field(None, max_length=255)
     ssh_port: int = Field(22, ge=1, le=65535)
-    purpose: str | None = None
-    notes: str | None = None
+    purpose: str | None = Field(None, max_length=255)
+    notes: str | None = Field(None, max_length=2000)
 
 
 class SshConnectionCreate(SshConnectionBase):
@@ -21,10 +21,10 @@ class SshConnectionUpdate(BaseModel):
     source_server_id: int | None = None
     target_server_id: int | None = None
     ssh_key_id: int | None = None
-    ssh_user: str | None = None
+    ssh_user: str | None = Field(None, max_length=255)
     ssh_port: int | None = Field(None, ge=1, le=65535)
-    purpose: str | None = None
-    notes: str | None = None
+    purpose: str | None = Field(None, max_length=255)
+    notes: str | None = Field(None, max_length=2000)
 
 
 class SshConnectionRead(SshConnectionBase):

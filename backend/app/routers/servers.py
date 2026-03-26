@@ -6,16 +6,18 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud, server_crud, ssh_connection_crud, ssh_key_crud
 from app.crud.activity import activity_crud
+from app.database import get_db
 from app.limiter import limiter
+from app.models.server import Server as ServerModel, ServerStatus
 from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
 
 logger = logging.getLogger(__name__)
-from app.database import get_db
 from app.schemas.application import ApplicationRead
 from app.schemas.dashboard import BatchHealthCheckResult
 from app.schemas.server import HealthCheckUpdate, ServerCreate, ServerRead, ServerReadDetail, ServerUpdate
@@ -96,6 +98,47 @@ class ImportResult(BaseModel):
     errors: list[str] = []
 
 
+BULK_UPDATE_ALLOWED_FIELDS = {"status", "provider_id", "location", "datacenter"}
+
+
+class BulkUpdateRequest(BaseModel):
+    ids: list[int] = Field(..., max_length=100)
+    updates: dict[str, str | int | None]
+
+
+class BulkUpdateResult(BaseModel):
+    updated: int = 0
+    errors: list[str] = []
+
+
+@router.post("/bulk-update", response_model=BulkUpdateResult, status_code=200)
+@limiter.limit("30/minute")
+async def bulk_update_servers(request: Request, body: BulkUpdateRequest, db: AsyncSession = Depends(get_db)):
+    invalid_fields = set(body.updates.keys()) - BULK_UPDATE_ALLOWED_FIELDS
+    if invalid_fields:
+        raise HTTPException(400, f"Fields not allowed for bulk update: {', '.join(invalid_fields)}")
+    if not body.updates:
+        raise HTTPException(400, "No update fields provided")
+
+    result = BulkUpdateResult()
+    for sid in body.ids:
+        try:
+            server = await server_crud.get(db, sid)
+            if not server:
+                result.errors.append(f"Server #{sid} not found")
+                continue
+            changes = compute_changes(server, body.updates)
+            await server_crud.update(db, sid, body.updates)
+            result.updated += 1
+            try:
+                await activity_crud.log_activity(db, "server", sid, server.name, "updated", changes or body.updates)
+            except Exception:
+                logger.warning("Failed to log activity for bulk-update server %s", sid, exc_info=True)
+        except Exception as e:
+            result.errors.append(f"Server #{sid}: {type(e).__name__}")
+    return result
+
+
 @router.post("/import", response_model=ImportResult, status_code=200)
 @limiter.limit("10/minute")
 async def import_servers(request: Request, body: ServerImportRequest, db: AsyncSession = Depends(get_db)):
@@ -106,9 +149,7 @@ async def import_servers(request: Request, body: ServerImportRequest, db: AsyncS
     for item in body.servers:
         try:
             # Check for duplicates
-            from sqlalchemy import select as sql_select
-            from app.models.server import Server as ServerModel
-            existing_stmt = sql_select(ServerModel).where(ServerModel.name == item.name)
+            existing_stmt = sa_select(ServerModel).where(ServerModel.name == item.name)
             existing = (await db.execute(existing_stmt)).scalar_one_or_none()
             if existing:
                 if body.skip_duplicates:
@@ -374,10 +415,7 @@ async def _check_single_server(host: str) -> tuple[str, int | None]:
 @limiter.limit("10/minute")
 async def batch_health_check(request: Request, db: AsyncSession = Depends(get_db)):
     """Run health checks on all active servers with IP/hostname configured."""
-    from sqlalchemy import select as sql_select
-    from app.models.server import Server as ServerModel, ServerStatus as SS
-
-    stmt = sql_select(ServerModel).where(ServerModel.status != SS.decommissioned)
+    stmt = sa_select(ServerModel).where(ServerModel.status != ServerStatus.decommissioned)
     all_servers = (await db.execute(stmt)).scalars().all()
 
     checked = 0

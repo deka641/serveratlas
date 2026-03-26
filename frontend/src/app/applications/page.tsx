@@ -37,6 +37,8 @@ const appCsvColumns = [
   { key: 'port' as const, label: 'Port' },
   { key: 'status' as const, label: 'Status' },
   { key: 'url' as const, label: 'URL' },
+  { key: 'config_notes' as const, label: 'Config Notes' },
+  { key: 'notes' as const, label: 'Notes' },
 ];
 
 function ApplicationsPageContent() {
@@ -136,8 +138,8 @@ function ApplicationsPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : `Export Page (${applications?.length ?? 0})`}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : `Export All (${total > 500 ? '500/' : ''}${total})`}</Button>
           <Link href="/applications/new">
             <Button>Add Application</Button>
           </Link>
@@ -192,8 +194,8 @@ function ApplicationsPageContent() {
         </>
       ) : (
         <EmptyState
-          message={searchTerm || urlState.status || urlState.server ? 'No applications match your filters' : 'No applications found'}
-          description={searchTerm || urlState.status || urlState.server ? 'Try different search criteria.' : 'Get started by adding your first application.'}
+          message={searchTerm || urlState.status || urlState.server ? 'No applications match your filters' : 'No applications yet'}
+          description={searchTerm || urlState.status || urlState.server ? 'Try adjusting your filters.' : 'Get started by adding your first application.'}
         />
       )}
 

@@ -247,8 +247,8 @@ function ActivitiesPageContent() {
       action={
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => setShowCleanup(!showCleanup)}>Manage</Button>
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : `Export Page (${activities?.length ?? 0})`}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : `Export All (${total > 500 ? '500/' : ''}${total})`}</Button>
         </div>
       }
     >
@@ -284,6 +284,33 @@ function ActivitiesPageContent() {
             value={urlState.date_to}
             onChange={(e) => setUrlState({ date_to: e.target.value, page: '0' })}
           />
+        </div>
+        <div className="flex items-end gap-1">
+          {[
+            { label: 'Today', days: 0 },
+            { label: '7d', days: 7 },
+            { label: '30d', days: 30 },
+            { label: '90d', days: 90 },
+          ].map(({ label, days }) => {
+            const from = new Date();
+            from.setDate(from.getDate() - days);
+            const fromStr = from.toISOString().slice(0, 10);
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const isActive = urlState.date_from === fromStr && urlState.date_to === todayStr;
+            return (
+              <button
+                key={label}
+                onClick={() => setUrlState({ date_from: fromStr, date_to: todayStr, page: '0' })}
+                className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
         <div className="w-full sm:w-64">
           <Input

@@ -116,8 +116,8 @@ function SshConnectionsPageContent() {
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>
           )}
-          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : 'Export CSV'}</Button>
-          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : 'Export All'}</Button>
+          <Button variant="secondary" onClick={handleExportCsv} disabled={exporting}>{exporting ? 'Exporting...' : `Export Page (${connections?.length ?? 0})`}</Button>
+          <Button variant="secondary" onClick={handleExportAll} disabled={exporting}>{exporting ? 'Exporting...' : `Export All (${total > 500 ? '500/' : ''}${total})`}</Button>
           <Link href="/ssh-connections/new">
             <Button>Add Connection</Button>
           </Link>
@@ -157,8 +157,8 @@ function SshConnectionsPageContent() {
         </>
       ) : (
         <EmptyState
-          message={searchTerm ? 'No connections match your search' : 'No SSH connections found'}
-          description={searchTerm ? 'Try a different search term.' : 'Get started by adding your first SSH connection.'}
+          message={searchTerm ? 'No SSH connections match your filters' : 'No SSH connections yet'}
+          description={searchTerm ? 'Try adjusting your filters.' : 'Get started by adding your first SSH connection.'}
         />
       )}
 

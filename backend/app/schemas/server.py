@@ -27,20 +27,20 @@ def _validate_ip(v: str | None, version: int) -> str | None:
 
 
 class ServerBase(BaseModel):
-    name: str
+    name: str = Field(..., max_length=255)
     provider_id: int | None = None
-    hostname: str | None = None
+    hostname: str | None = Field(None, max_length=512)
     ip_v4: str | None = None
     ip_v6: str | None = None
-    os: str | None = None
+    os: str | None = Field(None, max_length=255)
     cpu_cores: int | None = Field(None, ge=1)
     ram_mb: int | None = Field(None, ge=1)
     disk_gb: int | None = Field(None, ge=1)
-    location: str | None = None
-    datacenter: str | None = None
+    location: str | None = Field(None, max_length=255)
+    datacenter: str | None = Field(None, max_length=255)
     status: Literal["active", "inactive", "maintenance", "decommissioned"] = "active"
     monthly_cost: Decimal | None = Field(None, ge=0)
-    cost_currency: str | None = "EUR"
+    cost_currency: str | None = Field("EUR", max_length=3)
 
     @field_serializer('monthly_cost')
     @classmethod
@@ -57,10 +57,10 @@ class ServerBase(BaseModel):
     def validate_ipv6(cls, v):
         return _validate_ip(v, 6)
 
-    login_user: str | None = None
-    login_notes: str | None = None
-    notes: str | None = None
-    documentation: str | None = None
+    login_user: str | None = Field(None, max_length=255)
+    login_notes: str | None = Field(None, max_length=2000)
+    notes: str | None = Field(None, max_length=2000)
+    documentation: str | None = Field(None, max_length=65535)
 
 
 class ServerCreate(ServerBase):
@@ -68,24 +68,24 @@ class ServerCreate(ServerBase):
 
 
 class ServerUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(None, max_length=255)
     provider_id: int | None = None
-    hostname: str | None = None
+    hostname: str | None = Field(None, max_length=512)
     ip_v4: str | None = None
     ip_v6: str | None = None
-    os: str | None = None
+    os: str | None = Field(None, max_length=255)
     cpu_cores: int | None = Field(None, ge=1)
     ram_mb: int | None = Field(None, ge=1)
     disk_gb: int | None = Field(None, ge=1)
-    location: str | None = None
-    datacenter: str | None = None
+    location: str | None = Field(None, max_length=255)
+    datacenter: str | None = Field(None, max_length=255)
     status: Literal["active", "inactive", "maintenance", "decommissioned"] | None = None
     monthly_cost: Decimal | None = Field(None, ge=0)
-    cost_currency: str | None = None
-    login_user: str | None = None
-    login_notes: str | None = None
-    notes: str | None = None
-    documentation: str | None = None
+    cost_currency: str | None = Field(None, max_length=3)
+    login_user: str | None = Field(None, max_length=255)
+    login_notes: str | None = Field(None, max_length=2000)
+    notes: str | None = Field(None, max_length=2000)
+    documentation: str | None = Field(None, max_length=65535)
 
     @field_validator('ip_v4')
     @classmethod

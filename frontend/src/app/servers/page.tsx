@@ -51,6 +51,7 @@ const statusFilterOptions = [
   { value: 'inactive', label: 'Inactive' },
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'decommissioned', label: 'Decommissioned' },
+  { value: 'stale', label: 'Stale (>90d)' },
 ];
 
 function ServersPageContent() {
@@ -66,12 +67,21 @@ function ServersPageContent() {
   const [previewServerId, setPreviewServerId] = useState<number | null>(null);
   const [previewServer, setPreviewServer] = useState<ServerDetail | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [urlState, setUrlState] = useUrlState({
     status: '',
     provider: '',
     tag: '',
     search: '',
     page: '0',
+    ram_min: '',
+    ram_max: '',
+    cpu_min: '',
+    cpu_max: '',
+    disk_min: '',
+    disk_max: '',
+    cost_min: '',
+    cost_max: '',
   });
   const [search, setSearch] = useState(urlState.search);
   const debouncedSearch = useDebounce(search, 300);
@@ -91,16 +101,29 @@ function ServersPageContent() {
 
   const tagFilterOptions = useTagOptions();
 
+  const hasAdvancedFilters = !!(urlState.ram_min || urlState.ram_max || urlState.cpu_min || urlState.cpu_max || urlState.disk_min || urlState.disk_max || urlState.cost_min || urlState.cost_max);
+
   const params = useMemo(
     () => ({
-      status: urlState.status || undefined,
+      status: urlState.status && urlState.status !== 'stale' ? urlState.status : undefined,
+      stale: urlState.status === 'stale' ? true : undefined,
       provider_id: urlState.provider ? Number(urlState.provider) : undefined,
       tag_id: urlState.tag ? Number(urlState.tag) : undefined,
       search: debouncedSearch || undefined,
       skip: page * PAGE_SIZE,
       limit: PAGE_SIZE,
+      ram_min: urlState.ram_min ? Number(urlState.ram_min) : undefined,
+      ram_max: urlState.ram_max ? Number(urlState.ram_max) : undefined,
+      cpu_min: urlState.cpu_min ? Number(urlState.cpu_min) : undefined,
+      cpu_max: urlState.cpu_max ? Number(urlState.cpu_max) : undefined,
+      disk_min: urlState.disk_min ? Number(urlState.disk_min) : undefined,
+      disk_max: urlState.disk_max ? Number(urlState.disk_max) : undefined,
+      cost_min: urlState.cost_min ? Number(urlState.cost_min) : undefined,
+      cost_max: urlState.cost_max ? Number(urlState.cost_max) : undefined,
     }),
-    [urlState.status, urlState.provider, urlState.tag, debouncedSearch, page]
+    [urlState.status, urlState.provider, urlState.tag, debouncedSearch, page,
+     urlState.ram_min, urlState.ram_max, urlState.cpu_min, urlState.cpu_max,
+     urlState.disk_min, urlState.disk_max, urlState.cost_min, urlState.cost_max]
   );
 
   const { data: servers, total, loading, error, refetch } = useServers(params);
@@ -287,22 +310,78 @@ function ServersPageContent() {
             placeholder="Search servers..."
           />
         </div>
-        {(urlState.status || urlState.provider || urlState.tag || search) && (
+        {(urlState.status || urlState.provider || urlState.tag || search || hasAdvancedFilters) && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setUrlState({ status: '', provider: '', tag: '', search: '', page: '0' });
+              setUrlState({ status: '', provider: '', tag: '', search: '', page: '0', ram_min: '', ram_max: '', cpu_min: '', cpu_max: '', disk_min: '', disk_max: '', cost_min: '', cost_max: '' });
               setSearch('');
             }}
           >
             Clear filters
             <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs">
-              {[urlState.status, urlState.provider, urlState.tag, search].filter(Boolean).length}
+              {[urlState.status, urlState.provider, urlState.tag, search, ...Object.entries(urlState).filter(([k, v]) => k.includes('min') || k.includes('max')).map(([, v]) => v)].filter(Boolean).length}
             </span>
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+        >
+          {showAdvancedFilters ? 'Hide' : 'Advanced'} Filters
+          {hasAdvancedFilters && <span className="ml-1 inline-block h-2 w-2 rounded-full bg-blue-500" />}
+        </Button>
       </div>
+
+      {showAdvancedFilters && (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="mb-3 text-xs font-medium text-gray-500 uppercase">Numeric Range Filters</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">RAM (MB) min</label>
+              <input type="number" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Min"
+                value={urlState.ram_min} onChange={(e) => setUrlState({ ram_min: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">RAM (MB) max</label>
+              <input type="number" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Max"
+                value={urlState.ram_max} onChange={(e) => setUrlState({ ram_max: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">CPU min</label>
+              <input type="number" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Min"
+                value={urlState.cpu_min} onChange={(e) => setUrlState({ cpu_min: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">CPU max</label>
+              <input type="number" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Max"
+                value={urlState.cpu_max} onChange={(e) => setUrlState({ cpu_max: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Disk (GB) min</label>
+              <input type="number" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Min"
+                value={urlState.disk_min} onChange={(e) => setUrlState({ disk_min: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Disk (GB) max</label>
+              <input type="number" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Max"
+                value={urlState.disk_max} onChange={(e) => setUrlState({ disk_max: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Cost min</label>
+              <input type="number" step="0.01" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Min"
+                value={urlState.cost_min} onChange={(e) => setUrlState({ cost_min: e.target.value, page: '0' })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Cost max</label>
+              <input type="number" step="0.01" className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" placeholder="Max"
+                value={urlState.cost_max} onChange={(e) => setUrlState({ cost_max: e.target.value, page: '0' })} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <TableSkeleton columns={9} rows={8} />

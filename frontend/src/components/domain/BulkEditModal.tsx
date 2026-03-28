@@ -97,7 +97,7 @@ export default function BulkEditModal({ open, onClose, serverIds, onComplete }: 
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title="Bulk Edit Servers">
+    <Modal open={open} onClose={handleClose} title="Bulk Edit Servers" dismissable={false}>
       <div className="space-y-4">
         <Select
           label="Field to update"

@@ -13,7 +13,8 @@ router = APIRouter(prefix="/activities", tags=["activities"])
 
 
 @router.get("/stats")
-async def get_activity_stats(db: AsyncSession = Depends(get_db)):
+@limiter.limit("60/minute")
+async def get_activity_stats(request: Request, db: AsyncSession = Depends(get_db)):
     return await activity_crud.get_stats(db)
 
 
@@ -29,7 +30,9 @@ async def cleanup_activities(
 
 
 @router.get("")
+@limiter.limit("60/minute")
 async def list_activities(
+    request: Request,
     entity_type: str | None = None,
     entity_id: int | None = None,
     action: str | None = None,

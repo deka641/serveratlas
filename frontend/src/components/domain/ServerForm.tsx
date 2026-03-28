@@ -108,6 +108,15 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           }
         }
         break;
+      case 'ip_v6':
+        if (value && String(value).trim()) {
+          try {
+            new URL(`http://[${String(value).trim()}]`);
+          } catch {
+            error = 'Invalid IPv6 address format';
+          }
+        }
+        break;
       case 'monthly_cost':
         if (value !== null && value !== undefined && String(value).trim() !== '') {
           if (Number(value) < 0) {
@@ -139,6 +148,13 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
         if (octets.some((o) => o < 0 || o > 255)) {
           errors.ip_v4 = 'Each octet must be between 0 and 255';
         }
+      }
+    }
+    if (ipV6.trim()) {
+      try {
+        new URL(`http://[${ipV6.trim()}]`);
+      } catch {
+        errors.ip_v6 = 'Invalid IPv6 address format';
       }
     }
     if (monthlyCost !== '' && Number(monthlyCost) < 0) {
@@ -226,6 +242,8 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
             label="IPv6"
             value={ipV6}
             onChange={(e) => setIpV6(e.target.value)}
+            onBlur={(e) => validateField('ip_v6', e.target.value)}
+            error={fieldErrors.ip_v6}
             placeholder="e.g. ::1"
           />
         </div>

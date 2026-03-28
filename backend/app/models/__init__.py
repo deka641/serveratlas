@@ -7,6 +7,8 @@ from app.models.application import Application
 from app.models.backup import Backup
 from app.models.tag import Tag, ServerTag
 from app.models.activity import Activity
+from app.models.health_check import HealthCheck
+from app.models.webhook import Webhook
 
 __all__ = [
     "Provider",
@@ -19,4 +21,6 @@ __all__ = [
     "Tag",
     "ServerTag",
     "Activity",
+    "HealthCheck",
+    "Webhook",
 ]

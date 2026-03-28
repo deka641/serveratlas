@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -11,7 +12,7 @@ from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_c
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
-from app.schemas.backup import BackupCreate, BackupRead, BackupUpdate
+from app.schemas.backup import BackupCreate, BackupRead, BackupUpdate, BackupVerifyRequest
 
 router = APIRouter(prefix="/backups", tags=["backups"])
 
@@ -29,6 +30,9 @@ def _backup_to_read(b) -> dict:
         "last_run_at": b.last_run_at,
         "last_run_status": b.last_run_status.value if b.last_run_status else "never_run",
         "notes": b.notes,
+        "last_verified_at": b.last_verified_at,
+        "last_verified_by": b.last_verified_by,
+        "verification_notes": b.verification_notes,
         "created_at": b.created_at,
         "updated_at": b.updated_at,
         "application_name": b.application.name if b.application else None,
@@ -65,6 +69,29 @@ async def get_backup(id: int, db: AsyncSession = Depends(get_db)):
     if not backup:
         raise HTTPException(404, "Backup not found")
     return BackupRead.model_validate(_backup_to_read(backup))
+
+
+@router.post("/{id}/verify", response_model=BackupRead, status_code=200)
+@limiter.limit("30/minute")
+async def verify_backup(request: Request, id: int, data: BackupVerifyRequest, db: AsyncSession = Depends(get_db)):
+    backup = await backup_crud.get(db, id)
+    if not backup:
+        raise HTTPException(404, "Backup not found")
+    update_fields = {
+        "last_verified_at": datetime.utcnow(),
+        "last_verified_by": data.verified_by,
+        "verification_notes": data.notes,
+    }
+    updated = await backup_crud.update(db, id, update_fields)
+    detail = await backup_crud.get_detail(db, updated.id)
+    try:
+        await activity_crud.log_activity(db, "backup", id, backup.name, "verified", {
+            "verified_by": data.verified_by,
+            "notes": data.notes,
+        })
+    except Exception:
+        logger.warning("Failed to log activity for backup verify %s", id, exc_info=True)
+    return BackupRead.model_validate(_backup_to_read(detail))
 
 
 @router.post("", response_model=BackupRead, status_code=201)

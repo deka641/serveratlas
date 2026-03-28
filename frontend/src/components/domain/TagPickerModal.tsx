@@ -58,7 +58,7 @@ export default function TagPickerModal({ open, onClose, serverIds, onComplete }:
   }
 
   return (
-    <Modal open={open} title="Batch Tag Assignment" onClose={onClose}>
+    <Modal open={open} title="Batch Tag Assignment" onClose={onClose} dismissable={false}>
       <div className="space-y-4">
         <p className="text-sm text-gray-600">
           {action === 'assign' ? 'Assign' : 'Unassign'} tags {action === 'assign' ? 'to' : 'from'}{' '}

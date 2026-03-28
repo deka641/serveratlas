@@ -69,8 +69,8 @@ async function requestPaginated<T>(path: string, options?: RequestInit): Promise
 
 import type {
   Activity, Application, Backup, BackupCoverage, BatchHealthCheckResult, BulkUpdateResult, ConnectivityGraph, CostByTag, CostSummary,
-  DashboardStats, DocumentationCoverage, HealthSummary, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
-  ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag,
+  DashboardStats, DocumentationCoverage, EfficiencyMetric, HealthCheckRecord, HealthSummary, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
+  ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag, UptimeStats, Webhook,
 } from './types';
 
 export const api = {
@@ -91,7 +91,12 @@ export const api = {
   deleteProvider: (id: number) => request<void>(`/providers/${id}`, { method: 'DELETE' }),
 
   // Servers
-  listServers: (params?: { status?: string; provider_id?: number; tag_id?: number; search?: string; skip?: number; limit?: number }) => {
+  listServers: (params?: {
+    status?: string; provider_id?: number; tag_id?: number; search?: string;
+    skip?: number; limit?: number; stale?: boolean;
+    ram_min?: number; ram_max?: number; cpu_min?: number; cpu_max?: number;
+    disk_min?: number; disk_max?: number; cost_min?: number; cost_max?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.provider_id) qs.set('provider_id', String(params.provider_id));
@@ -99,6 +104,15 @@ export const api = {
     if (params?.search) qs.set('search', params.search);
     if (params?.skip != null) qs.set('skip', String(params.skip));
     if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.stale) qs.set('stale', 'true');
+    if (params?.ram_min != null) qs.set('ram_min', String(params.ram_min));
+    if (params?.ram_max != null) qs.set('ram_max', String(params.ram_max));
+    if (params?.cpu_min != null) qs.set('cpu_min', String(params.cpu_min));
+    if (params?.cpu_max != null) qs.set('cpu_max', String(params.cpu_max));
+    if (params?.disk_min != null) qs.set('disk_min', String(params.disk_min));
+    if (params?.disk_max != null) qs.set('disk_max', String(params.disk_max));
+    if (params?.cost_min != null) qs.set('cost_min', String(params.cost_min));
+    if (params?.cost_max != null) qs.set('cost_max', String(params.cost_max));
     const q = qs.toString();
     return requestPaginated<Server>(`/servers${q ? '?' + q : ''}`);
   },
@@ -115,6 +129,8 @@ export const api = {
     request<void>(`/servers/${serverId}/ssh-keys/${keyId}`, { method: 'DELETE' }),
   importServers: (data: { servers: Array<{ name: string; hostname?: string; ip_v4?: string; os?: string; provider_name?: string; status?: string; location?: string; [key: string]: unknown }>; skip_duplicates?: boolean }) =>
     request<{ created: number; skipped: number; errors: string[] }>('/servers/import', { method: 'POST', body: JSON.stringify(data) }),
+  markServerAudited: (id: number, data?: { audited_by?: string }) =>
+    request<Server>(`/servers/${id}/mark-audited`, { method: 'POST', body: JSON.stringify(data || {}) }),
 
   // SSH Keys
   listSshKeys: (params?: { search?: string; skip?: number; limit?: number }) => {
@@ -177,6 +193,8 @@ export const api = {
   createBackup: (data: Partial<Backup>) => request<Backup>('/backups', { method: 'POST', body: JSON.stringify(data) }),
   updateBackup: (id: number, data: Partial<Backup>) => request<Backup>(`/backups/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteBackup: (id: number) => request<void>(`/backups/${id}`, { method: 'DELETE' }),
+  verifyBackup: (id: number, data: { verified_by?: string; notes?: string }) =>
+    request<Backup>(`/backups/${id}/verify`, { method: 'POST', body: JSON.stringify(data) }),
 
   // Bulk operations
   bulkDeleteServers: (ids: number[]) => request<void>('/servers/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
@@ -244,4 +262,25 @@ export const api = {
 
   // Documentation coverage
   getDocumentationCoverage: () => request<DocumentationCoverage>('/dashboard/documentation-coverage'),
+
+  // Efficiency metrics
+  getEfficiencyMetrics: () => request<EfficiencyMetric[]>('/dashboard/efficiency-metrics'),
+
+  // Health check history
+  getHealthCheckHistory: (serverId: number, params?: { limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return request<HealthCheckRecord[]>(`/health-checks/server/${serverId}${q ? '?' + q : ''}`);
+  },
+  getUptimeStats: (serverId: number, days?: number) =>
+    request<UptimeStats>(`/health-checks/server/${serverId}/stats${days ? '?days=' + days : ''}`),
+
+  // Webhooks
+  listWebhooks: () => request<Webhook[]>('/webhooks'),
+  getWebhook: (id: number) => request<Webhook>(`/webhooks/${id}`),
+  createWebhook: (data: Partial<Webhook>) => request<Webhook>('/webhooks', { method: 'POST', body: JSON.stringify(data) }),
+  updateWebhook: (id: number, data: Partial<Webhook>) => request<Webhook>(`/webhooks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteWebhook: (id: number) => request<void>(`/webhooks/${id}`, { method: 'DELETE' }),
+  testWebhook: (id: number) => request<{ status: string }>(`/webhooks/${id}/test`, { method: 'POST' }),
 };

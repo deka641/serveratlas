@@ -12,6 +12,7 @@ import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
 import CostOverview from '@/components/domain/CostOverview';
 import BackupHealthTable from '@/components/domain/BackupHealthTable';
 import DocumentationCoverage from '@/components/domain/DocumentationCoverage';
+import EfficiencyMetrics from '@/components/domain/EfficiencyMetrics';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import SectionSkeleton from '@/components/ui/SectionSkeleton';
@@ -230,6 +231,11 @@ export default function DashboardPage() {
           ) : costSummary ? (
             <CostOverview costSummary={costSummary} />
           ) : null}
+        </section>
+
+        {/* Resource Efficiency */}
+        <section>
+          <EfficiencyMetrics />
         </section>
 
         {/* Infrastructure Health Summary (#20) */}

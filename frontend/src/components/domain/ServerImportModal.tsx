@@ -145,7 +145,7 @@ export default function ServerImportModal({ open, onClose, onComplete }: ServerI
   }
 
   return (
-    <Modal open={open} title="Import Servers from CSV" onClose={handleClose}>
+    <Modal open={open} title="Import Servers from CSV" onClose={handleClose} dismissable={false}>
       <div className="space-y-4">
         <div>
           <input

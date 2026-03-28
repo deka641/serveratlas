@@ -39,7 +39,15 @@ class BackupRead(BackupBase):
     application_name: str | None = None
     source_server_name: str | None = None
     target_server_name: str | None = None
+    last_verified_at: datetime | None = None
+    last_verified_by: str | None = None
+    verification_notes: str | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BackupVerifyRequest(BaseModel):
+    verified_by: str | None = Field(None, max_length=255)
+    notes: str | None = Field(None, max_length=2000)

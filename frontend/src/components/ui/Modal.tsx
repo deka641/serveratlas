@@ -9,9 +9,10 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   className?: string;
+  dismissable?: boolean;
 }
 
-export default function Modal({ open, onClose, title, children, className = '' }: ModalProps) {
+export default function Modal({ open, onClose, title, children, className = '', dismissable = true }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, open);
 
@@ -42,7 +43,7 @@ export default function Modal({ open, onClose, title, children, className = '' }
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="fixed inset-0 bg-black/50 transition-opacity"
-        onClick={onClose}
+        onClick={dismissable ? onClose : undefined}
       />
       <div
         ref={dialogRef}

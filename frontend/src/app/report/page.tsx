@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useData } from '@/hooks/useData';
 import { api } from '@/lib/api';
-import { formatCost, formatRAM, formatDisk, formatDateTime } from '@/lib/formatters';
+import { formatCost, formatNumber, formatRAM, formatDisk, formatDateTime } from '@/lib/formatters';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Button from '@/components/ui/Button';
+import CSSBarChart from '@/components/domain/CSSBarChart';
+import CSSDonutIndicator from '@/components/domain/CSSDonutIndicator';
 import type { Application, SshConnection, Tag, Server, Backup, OverdueBackup } from '@/lib/types';
 
 function ReportSkeleton() {
@@ -242,15 +244,53 @@ export default function ReportPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">ServerAtlas</h1>
         <p className="text-lg text-gray-600">Infrastructure Report</p>
-        <p className="mt-1 text-sm text-gray-500">Generated on {dateWithDay}</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Managing {stats.total_servers} server{stats.total_servers !== 1 ? 's' : ''} across {stats.total_providers} provider{stats.total_providers !== 1 ? 's' : ''}
+        </p>
+        <p className="mt-1 text-xs text-gray-400">Generated on {timestampFull}</p>
         <hr className="mt-4 border-gray-200" />
       </div>
 
       {/* Executive Summary */}
-      <section className={`mb-8 report-section print-keep-together ${allClear ? 'border-l-4 border-green-500 bg-green-50 p-4 rounded-r-lg' : 'border-l-4 border-red-500 bg-red-50 p-4 rounded-r-lg'}`}>
+      <section id="executive-summary" className={`mb-8 report-section print-keep-together ${allClear ? 'border-l-4 border-green-500 bg-green-50 p-4 rounded-r-lg' : 'border-l-4 border-red-500 bg-red-50 p-4 rounded-r-lg'}`}>
         <h2 className="mb-3 text-lg font-semibold text-gray-900">
           {allClear ? 'All Systems Operational' : `${findings.length} Critical Finding${findings.length !== 1 ? 's' : ''}`}
         </h2>
+
+        {/* Key Metrics Grid */}
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded border border-gray-200 bg-white p-3">
+            <p className="text-lg font-bold text-gray-900">
+              {costSummary.totals_by_currency.length > 0
+                ? formatCost(costSummary.totals_by_currency[0].amount, costSummary.totals_by_currency[0].currency)
+                : '\u2014'}
+            </p>
+            <p className="text-xs text-gray-500">Total Monthly Cost</p>
+          </div>
+          <div className="rounded border border-gray-200 bg-white p-3">
+            <p className="text-lg font-bold text-gray-900">
+              {stats.total_servers > 0
+                ? `${Math.round((servers.filter(s => s.status === 'active').length / stats.total_servers) * 100)}%`
+                : '0%'}
+            </p>
+            <p className="text-xs text-gray-500">Server Utilization</p>
+          </div>
+          <div className="rounded border border-gray-200 bg-white p-3">
+            <p className="text-lg font-bold text-gray-900">
+              {backupCoverage && backupCoverage.total_applications > 0
+                ? `${Math.round((backupCoverage.covered_applications / backupCoverage.total_applications) * 100)}%`
+                : '\u2014'}
+            </p>
+            <p className="text-xs text-gray-500">Backup Coverage</p>
+          </div>
+          <div className="rounded border border-gray-200 bg-white p-3">
+            <p className={`text-lg font-bold ${findings.filter(f => f.critical).length > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {findings.filter(f => f.critical).length}
+            </p>
+            <p className="text-xs text-gray-500">Critical Findings</p>
+          </div>
+        </div>
+
         {allClear ? (
           <div className="flex items-center gap-2">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500 print-color-exact" />
@@ -272,7 +312,61 @@ export default function ReportPage() {
             ))}
           </ul>
         )}
+
+        {/* Recommendations */}
+        {(() => {
+          const recommendations: string[] = [];
+          if (stats.unhealthy_servers > 0) {
+            recommendations.push(`Investigate ${stats.unhealthy_servers} unhealthy server${stats.unhealthy_servers !== 1 ? 's' : ''}`);
+          }
+          if (backupCoverage && backupCoverage.uncovered_applications.length > 0) {
+            recommendations.push(`Configure backup for ${backupCoverage.uncovered_applications.length} uncovered application${backupCoverage.uncovered_applications.length !== 1 ? 's' : ''}`);
+          }
+          if (overdueBackups && overdueBackups.length > 0) {
+            recommendations.push(`Review ${overdueBackups.length} overdue backup${overdueBackups.length !== 1 ? 's' : ''}`);
+          }
+          if (stats.failing_backups > 0) {
+            recommendations.push(`Resolve ${stats.failing_backups} failing backup${stats.failing_backups !== 1 ? 's' : ''}`);
+          }
+          if (recommendations.length === 0) return null;
+          return (
+            <div className="mt-4 rounded border border-gray-200 bg-white p-3">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Recommendations</h3>
+              <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
+                {recommendations.map((rec, i) => (
+                  <li key={i}>{rec}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
       </section>
+
+      {/* Table of Contents */}
+      <nav className="mb-8 report-section print-keep-together">
+        <h2 className="mb-3 text-lg font-semibold text-gray-900">Table of Contents</h2>
+        <ol className="list-decimal list-inside space-y-1 text-sm text-blue-600">
+          {[
+            { id: 'summary', label: 'Summary' },
+            { id: 'cost-breakdown', label: 'Cost Breakdown' },
+            { id: 'backup-health', label: 'Backup Health' },
+            { id: 'resource-summary', label: 'Resource Summary' },
+            { id: 'server-inventory', label: 'Server Inventory' },
+            { id: 'application-inventory', label: 'Application Inventory' },
+            { id: 'ssh-topology', label: 'SSH Connection Topology' },
+            { id: 'tag-distribution', label: 'Tag Distribution' },
+            { id: 'cost-by-tag', label: 'Cost by Tag' },
+            { id: 'overdue-backups', label: 'Overdue Backups' },
+            { id: 'backup-schedule', label: 'Backup Schedule' },
+          ].map((section) => (
+            <li key={section.id}>
+              <a href={`#${section.id}`} className="hover:underline">
+                {section.label}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
 
       {/* Filters - hidden in print */}
       <div className="mb-6 flex flex-wrap gap-4" data-no-print>
@@ -336,7 +430,7 @@ export default function ReportPage() {
       )}
 
       {/* Summary */}
-      <section className="mb-8 report-section">
+      <section id="summary" className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Summary</h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div className="rounded border p-3">
@@ -367,7 +461,7 @@ export default function ReportPage() {
       </section>
 
       {/* Cost Breakdown */}
-      <section className="mb-8 report-section">
+      <section id="cost-breakdown" className="mb-8 report-section">
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost Breakdown</h2>
         {costSummary.totals_by_currency.length > 0 ? (
           <div className="mb-4 flex gap-4">
@@ -401,30 +495,53 @@ export default function ReportPage() {
             </tbody>
           </table>
         )}
+        {costSummary.by_provider.length > 0 && (
+          <div className="mt-4">
+            <CSSBarChart
+              title="Cost by Provider"
+              items={costSummary.by_provider.map((item) => ({
+                label: item.provider_name,
+                value: Number(item.total_cost),
+              }))}
+              formatValue={(v) => formatCost(v)}
+            />
+          </div>
+        )}
       </section>
 
       {/* Backup Health (Tier 1 data) */}
       {backupCoverage && (
-        <section className="mb-8 report-section">
+        <section id="backup-health" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Health</h2>
-          <p className="text-sm">
-            {backupCoverage.covered_applications} of {backupCoverage.total_applications} applications covered.
-            {backupCoverage.failed_backups_24h > 0 && (
-              <span className="ml-2 font-semibold text-red-600">
-                {backupCoverage.failed_backups_24h} failed in last 24h.
-              </span>
-            )}
-          </p>
-          {backupCoverage.uncovered_applications.length > 0 && (
-            <div className="mt-2">
-              <p className="text-sm font-medium text-gray-700">Uncovered applications:</p>
-              <ul className="mt-1 list-inside list-disc text-sm text-gray-600">
-                {backupCoverage.uncovered_applications.map((name) => (
-                  <li key={name}>{name}</li>
-                ))}
-              </ul>
+          <div className="flex items-start gap-6">
+            <CSSDonutIndicator
+              percentage={backupCoverage.total_applications > 0
+                ? (backupCoverage.covered_applications / backupCoverage.total_applications) * 100
+                : 0}
+              label="Backup Coverage"
+              color={backupCoverage.total_applications > 0 && backupCoverage.covered_applications === backupCoverage.total_applications ? '#22c55e' : '#3b82f6'}
+            />
+            <div className="flex-1">
+              <p className="text-sm">
+                {backupCoverage.covered_applications} of {backupCoverage.total_applications} applications covered.
+                {backupCoverage.failed_backups_24h > 0 && (
+                  <span className="ml-2 font-semibold text-red-600">
+                    {backupCoverage.failed_backups_24h} failed in last 24h.
+                  </span>
+                )}
+              </p>
+              {backupCoverage.uncovered_applications.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-sm font-medium text-gray-700">Uncovered applications:</p>
+                  <ul className="mt-1 list-inside list-disc text-sm text-gray-600">
+                    {backupCoverage.uncovered_applications.map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </section>
       )}
 
@@ -434,7 +551,7 @@ export default function ReportPage() {
       {tier2Loading ? (
         <SectionSkeleton title="Resource Summary" />
       ) : servers.length > 0 ? (
-        <section className="mb-8 report-section">
+        <section id="resource-summary" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Resource Summary</h2>
           <div className="mb-4 grid grid-cols-3 gap-4">
             <div className="rounded border p-3">
@@ -507,6 +624,18 @@ export default function ReportPage() {
               </tbody>
             </table>
           )}
+          {Object.keys(resourcesByProvider).length > 0 && (
+            <div className="mt-4">
+              <CSSBarChart
+                title="CPU Cores by Provider"
+                items={Object.entries(resourcesByProvider).map(([name, res]) => ({
+                  label: name,
+                  value: res.cpu,
+                }))}
+                formatValue={(v) => formatNumber(v)}
+              />
+            </div>
+          )}
         </section>
       ) : null}
 
@@ -514,7 +643,7 @@ export default function ReportPage() {
       {tier2Loading ? (
         <SectionSkeleton title="Server Inventory" />
       ) : (
-        <section className="mb-8 report-section">
+        <section id="server-inventory" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Server Inventory</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
             <thead>
@@ -583,7 +712,7 @@ export default function ReportPage() {
       {tier2Loading ? (
         <SectionSkeleton title="Application Inventory" />
       ) : (
-        <section className="mb-8 report-section">
+        <section id="application-inventory" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Application Inventory</h2>
           {applications.length > 0 ? (
             <table className="w-full text-sm print:text-xs border-collapse">
@@ -620,7 +749,7 @@ export default function ReportPage() {
       {tier2Loading ? (
         <SectionSkeleton title="SSH Connection Topology" />
       ) : (
-        <section className="mb-8 report-section">
+        <section id="ssh-topology" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">SSH Connection Topology</h2>
           {connections.length > 0 ? (
             <>
@@ -661,7 +790,7 @@ export default function ReportPage() {
       {tier2Loading ? (
         <SectionSkeleton title="Tag Distribution" />
       ) : (
-        <section className="mb-8 report-section">
+        <section id="tag-distribution" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Tag Distribution</h2>
           {tags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -698,7 +827,7 @@ export default function ReportPage() {
       {!tier2Ready ? (
         <SectionSkeleton title="Cost by Tag" />
       ) : costByTag && costByTag.length > 0 ? (
-        <section className="mb-8 report-section">
+        <section id="cost-by-tag" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Cost by Tag</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
             <thead>
@@ -730,7 +859,7 @@ export default function ReportPage() {
       {!tier2Ready ? (
         <SectionSkeleton title="Overdue Backups" />
       ) : overdueBackups && overdueBackups.length > 0 ? (
-        <section className="mb-8 report-section">
+        <section id="overdue-backups" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Overdue Backups</h2>
           <p className="mb-3 text-sm text-red-600 font-medium">
             {overdueBackups.length} backup{overdueBackups.length !== 1 ? 's require' : ' requires'} attention.
@@ -773,7 +902,7 @@ export default function ReportPage() {
       {tier2Loading ? (
         <SectionSkeleton title="Backup Schedule" />
       ) : backups.length > 0 ? (
-        <section className="mb-8 report-section">
+        <section id="backup-schedule" className="mb-8 report-section">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">Backup Schedule</h2>
           <table className="w-full text-sm print:text-xs border-collapse">
             <thead>

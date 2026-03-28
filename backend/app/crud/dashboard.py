@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import case, func, select
@@ -53,22 +53,27 @@ class DashboardCRUD:
                 func.coalesce(func.sum(Server.monthly_cost), 0).label("total_cost"),
                 func.coalesce(Server.cost_currency, "EUR").label("currency"),
                 func.count(Server.id).label("server_count"),
+                Provider.monthly_budget.label("monthly_budget"),
             )
             .outerjoin(Provider, Provider.id == Server.provider_id)
             .where(Server.monthly_cost.isnot(None))
-            .group_by("provider_name", Server.cost_currency)
+            .group_by("provider_name", Server.cost_currency, Provider.monthly_budget)
         )
         result = await db.execute(stmt)
         rows = result.all()
 
         by_provider = []
         totals_map: dict[str, Decimal] = {}
-        for name, cost, currency, count in rows:
-            cost_val = Decimal(str(cost))
-            cur = currency or "EUR"
+        for row in rows:
+            cost_val = Decimal(str(row.total_cost))
+            cur = row.currency or "EUR"
             totals_map[cur] = totals_map.get(cur, Decimal("0.00")) + cost_val
+            budget = Decimal(str(row.monthly_budget)) if row.monthly_budget else None
+            utilization = round(float(cost_val / budget * 100), 1) if budget and budget > 0 else None
             by_provider.append(CostByProvider(
-                provider_name=name, total_cost=cost_val, currency=cur, server_count=count
+                provider_name=row.provider_name, total_cost=cost_val, currency=cur,
+                server_count=row.server_count, monthly_budget=budget,
+                budget_utilization_pct=utilization,
             ))
 
         totals_by_currency = [
@@ -111,24 +116,31 @@ class DashboardCRUD:
 
 
     async def get_backup_coverage(self, db: AsyncSession) -> BackupCoverage:
-        total_apps = (await db.execute(select(func.count(Application.id)))).scalar() or 0
-
-        covered_stmt = (
-            select(func.count(func.distinct(Backup.application_id)))
-            .where(Backup.application_id.isnot(None))
-        )
-        covered_apps = (await db.execute(covered_stmt)).scalar() or 0
-
         cutoff = datetime.utcnow() - timedelta(hours=24)
-        failed_stmt = (
-            select(func.count(Backup.id))
-            .where(
-                Backup.last_run_status == BackupStatus.failed,
-                Backup.last_run_at >= cutoff,
-            )
-        )
-        failed_24h = (await db.execute(failed_stmt)).scalar() or 0
 
+        # Consolidated query: total apps, covered apps, failed in 24h
+        agg_stmt = (
+            select(
+                func.count(func.distinct(Application.id)).label("total_apps"),
+                func.count(func.distinct(
+                    case((Backup.application_id.isnot(None), Backup.application_id), else_=None)
+                )).label("covered_apps"),
+                func.count(func.distinct(
+                    case(
+                        (
+                            (Backup.last_run_status == BackupStatus.failed) & (Backup.last_run_at >= cutoff),
+                            Backup.id,
+                        ),
+                        else_=None,
+                    )
+                )).label("failed_24h"),
+            )
+            .select_from(Application)
+            .outerjoin(Backup, Backup.application_id == Application.id)
+        )
+        row = (await db.execute(agg_stmt)).one()
+
+        # Uncovered applications (separate query — needs actual names)
         uncovered_stmt = (
             select(Application.name)
             .where(~Application.id.in_(
@@ -136,64 +148,67 @@ class DashboardCRUD:
             ))
         )
         uncovered_result = await db.execute(uncovered_stmt)
-        uncovered_names = [row[0] for row in uncovered_result.all()]
+        uncovered_names = [r[0] for r in uncovered_result.all()]
 
         return BackupCoverage(
-            total_applications=total_apps,
-            covered_applications=covered_apps,
-            failed_backups_24h=failed_24h,
+            total_applications=row.total_apps,
+            covered_applications=row.covered_apps,
+            failed_backups_24h=row.failed_24h,
             uncovered_applications=uncovered_names,
         )
 
 
     async def get_overdue_backups(self, db: AsyncSession) -> list[OverdueBackup]:
-        frequency_hours = {
-            BackupFrequency.hourly: 2,
-            BackupFrequency.daily: 26,
-            BackupFrequency.weekly: 170,
-            BackupFrequency.monthly: 744,
-        }
+        from sqlalchemy import literal_column, type_coerce, Integer as SAInteger
+
+        # Compute deadline per frequency directly in SQL
+        deadline_expr = case(
+            (Backup.frequency == BackupFrequency.hourly, Backup.last_run_at + timedelta(hours=2)),
+            (Backup.frequency == BackupFrequency.daily, Backup.last_run_at + timedelta(hours=26)),
+            (Backup.frequency == BackupFrequency.weekly, Backup.last_run_at + timedelta(hours=170)),
+            (Backup.frequency == BackupFrequency.monthly, Backup.last_run_at + timedelta(hours=744)),
+        )
 
         now = datetime.utcnow()
-        # Pre-filter: smallest tolerance is 2h (hourly), so only load backups
-        # whose last_run_at is at least 2h ago. This drastically reduces
-        # the number of rows loaded into memory.
-        min_cutoff = now - timedelta(hours=2)
+        hours_overdue_expr = func.floor(
+            func.extract('epoch', literal_column(f"'{now.isoformat()}'::timestamp") - deadline_expr) / 3600
+        )
+
         stmt = (
-            select(Backup)
-            .options(
-                selectinload(Backup.source_server),
-                selectinload(Backup.application),
+            select(
+                Backup.id,
+                Backup.name,
+                Backup.frequency,
+                Backup.last_run_at,
+                Server.name.label("source_server_name"),
+                Application.name.label("application_name"),
+                type_coerce(hours_overdue_expr, SAInteger).label("hours_overdue"),
             )
+            .outerjoin(Server, Backup.source_server_id == Server.id)
+            .outerjoin(Application, Backup.application_id == Application.id)
             .where(
                 Backup.frequency != BackupFrequency.manual,
                 Backup.last_run_at.isnot(None),
-                Backup.last_run_at < min_cutoff,
+                deadline_expr.isnot(None),
+                literal_column(f"'{now.isoformat()}'::timestamp") > deadline_expr,
             )
+            .order_by(hours_overdue_expr.desc())
         )
         result = await db.execute(stmt)
-        backups = result.scalars().all()
+        rows = result.all()
 
-        overdue = []
-        for b in backups:
-            max_hours = frequency_hours.get(b.frequency)
-            if max_hours is None:
-                continue
-            deadline = b.last_run_at + timedelta(hours=max_hours)
-            if now > deadline:
-                hours_overdue = int((now - deadline).total_seconds() / 3600)
-                overdue.append(OverdueBackup(
-                    id=b.id,
-                    name=b.name,
-                    frequency=b.frequency.value,
-                    last_run_at=b.last_run_at.isoformat() if b.last_run_at else None,
-                    source_server_name=b.source_server.name if b.source_server else None,
-                    application_name=b.application.name if b.application else None,
-                    hours_overdue=hours_overdue,
-                ))
-
-        overdue.sort(key=lambda x: x.hours_overdue, reverse=True)
-        return overdue
+        return [
+            OverdueBackup(
+                id=row.id,
+                name=row.name,
+                frequency=row.frequency.value if hasattr(row.frequency, 'value') else row.frequency,
+                last_run_at=row.last_run_at.isoformat() if row.last_run_at else None,
+                source_server_name=row.source_server_name,
+                application_name=row.application_name,
+                hours_overdue=max(row.hours_overdue or 0, 0),
+            )
+            for row in rows
+        ]
 
 
     async def get_cost_by_tag(self, db: AsyncSession) -> list[CostByTag]:
@@ -272,6 +287,41 @@ class DashboardCRUD:
             documented=documented,
             undocumented_servers=undocumented,
         )
+
+
+    async def get_efficiency_metrics(self, db: AsyncSession) -> list:
+        from app.schemas.dashboard import EfficiencyMetric
+        stmt = (
+            select(
+                func.coalesce(Provider.name, "Unassigned").label("provider_name"),
+                func.sum(Server.monthly_cost).label("total_cost"),
+                func.sum(Server.cpu_cores).label("total_cpu"),
+                func.sum(Server.ram_mb).label("total_ram_mb"),
+                func.sum(Server.disk_gb).label("total_disk_gb"),
+                func.count(Server.id).label("server_count"),
+            )
+            .outerjoin(Provider, Provider.id == Server.provider_id)
+            .where(Server.monthly_cost.isnot(None), Server.monthly_cost > 0)
+            .group_by("provider_name")
+            .order_by(func.sum(Server.monthly_cost).desc())
+        )
+        result = await db.execute(stmt)
+        metrics = []
+        for row in result.all():
+            cost = float(row.total_cost) if row.total_cost else 0
+            cpu = row.total_cpu or 0
+            ram_gb = (row.total_ram_mb or 0) / 1024
+            disk = row.total_disk_gb or 0
+            count = row.server_count or 0
+            metrics.append(EfficiencyMetric(
+                provider_name=row.provider_name,
+                cost_per_cpu=round(cost / cpu, 2) if cpu > 0 else None,
+                cost_per_gb_ram=round(cost / ram_gb, 2) if ram_gb > 0 else None,
+                cost_per_gb_disk=round(cost / disk, 2) if disk > 0 else None,
+                avg_cost_per_server=round(cost / count, 2) if count > 0 else None,
+                server_count=count,
+            ))
+        return metrics
 
 
 dashboard_crud = DashboardCRUD()

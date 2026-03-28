@@ -1,6 +1,7 @@
+from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,10 +14,36 @@ from app.models.tag import ServerTag
 
 
 class ServerCRUD(CRUDBase[Server]):
+    def _apply_range_filters(self, stmt, **kwargs):
+        """Apply numeric range filters to a query statement."""
+        range_map = {
+            'ram_min': (Server.ram_mb, '>='),
+            'ram_max': (Server.ram_mb, '<='),
+            'cpu_min': (Server.cpu_cores, '>='),
+            'cpu_max': (Server.cpu_cores, '<='),
+            'disk_min': (Server.disk_gb, '>='),
+            'disk_max': (Server.disk_gb, '<='),
+            'cost_min': (Server.monthly_cost, '>='),
+            'cost_max': (Server.monthly_cost, '<='),
+        }
+        for key, (col, op) in range_map.items():
+            val = kwargs.get(key)
+            if val is not None:
+                if op == '>=':
+                    stmt = stmt.where(col >= val)
+                else:
+                    stmt = stmt.where(col <= val)
+        return stmt
+
     async def get_multi_filtered(
         self, db: AsyncSession, skip: int = 0, limit: int = 100,
         status: str | None = None, provider_id: int | None = None,
-        search: str | None = None, tag_id: int | None = None
+        search: str | None = None, tag_id: int | None = None,
+        stale: bool | None = None,
+        ram_min: int | None = None, ram_max: int | None = None,
+        cpu_min: int | None = None, cpu_max: int | None = None,
+        disk_min: int | None = None, disk_max: int | None = None,
+        cost_min: float | None = None, cost_max: float | None = None,
     ) -> list[Server]:
         stmt = select(Server).outerjoin(Provider).options(
             selectinload(Server.provider),
@@ -35,6 +62,15 @@ class ServerCRUD(CRUDBase[Server]):
                 Server.hostname.ilike(f"%{escaped}%", escape="\\") |
                 Server.ip_v4.ilike(f"%{escaped}%", escape="\\")
             )
+        if stale:
+            cutoff = datetime.utcnow() - timedelta(days=90)
+            stmt = stmt.where(
+                or_(Server.last_audited_at.is_(None), Server.last_audited_at < cutoff)
+            )
+        stmt = self._apply_range_filters(
+            stmt, ram_min=ram_min, ram_max=ram_max, cpu_min=cpu_min, cpu_max=cpu_max,
+            disk_min=disk_min, disk_max=disk_max, cost_min=cost_min, cost_max=cost_max,
+        )
         stmt = stmt.offset(skip).limit(limit)
         result = await db.execute(stmt)
         return list(result.scalars().all())
@@ -42,7 +78,12 @@ class ServerCRUD(CRUDBase[Server]):
     async def count_filtered(
         self, db: AsyncSession,
         status: str | None = None, provider_id: int | None = None,
-        search: str | None = None, tag_id: int | None = None
+        search: str | None = None, tag_id: int | None = None,
+        stale: bool | None = None,
+        ram_min: int | None = None, ram_max: int | None = None,
+        cpu_min: int | None = None, cpu_max: int | None = None,
+        disk_min: int | None = None, disk_max: int | None = None,
+        cost_min: float | None = None, cost_max: float | None = None,
     ) -> int:
         stmt = select(func.count(Server.id))
         if status:
@@ -58,6 +99,15 @@ class ServerCRUD(CRUDBase[Server]):
                 Server.hostname.ilike(f"%{escaped}%", escape="\\") |
                 Server.ip_v4.ilike(f"%{escaped}%", escape="\\")
             )
+        if stale:
+            cutoff = datetime.utcnow() - timedelta(days=90)
+            stmt = stmt.where(
+                or_(Server.last_audited_at.is_(None), Server.last_audited_at < cutoff)
+            )
+        stmt = self._apply_range_filters(
+            stmt, ram_min=ram_min, ram_max=ram_max, cpu_min=cpu_min, cpu_max=cpu_max,
+            disk_min=disk_min, disk_max=disk_max, cost_min=cost_min, cost_max=cost_max,
+        )
         result = await db.execute(stmt)
         return result.scalar() or 0
 

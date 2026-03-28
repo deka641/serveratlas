@@ -40,6 +40,8 @@ class Server(Base):
     last_checked_at: Mapped[datetime | None] = mapped_column(nullable=True)
     last_check_status: Mapped[str | None] = mapped_column(String(20), default="unknown")
     response_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_audited_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_audited_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

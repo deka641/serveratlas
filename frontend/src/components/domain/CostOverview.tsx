@@ -49,6 +49,9 @@ export default function CostOverview({ costSummary }: CostOverviewProps) {
                 <th className="pb-2 text-right font-medium text-gray-500">
                   Monthly Cost
                 </th>
+                <th className="pb-2 text-right font-medium text-gray-500">
+                  Budget
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -65,6 +68,31 @@ export default function CostOverview({ costSummary }: CostOverviewProps) {
                   </td>
                   <td className="py-2 text-right font-mono text-gray-900">
                     {formatCost(item.total_cost, item.currency)}
+                  </td>
+                  <td className="py-2 text-right">
+                    {item.monthly_budget != null ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              (item.budget_utilization_pct ?? 0) > 100 ? 'bg-red-500' :
+                              (item.budget_utilization_pct ?? 0) > 80 ? 'bg-amber-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(item.budget_utilization_pct ?? 0, 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-medium ${
+                          (item.budget_utilization_pct ?? 0) > 100 ? 'text-red-600' :
+                          (item.budget_utilization_pct ?? 0) > 80 ? 'text-amber-600' :
+                          'text-green-600'
+                        }`}>
+                          {item.budget_utilization_pct != null ? `${item.budget_utilization_pct}%` : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">No budget</span>
+                    )}
                   </td>
                 </tr>
               ))}

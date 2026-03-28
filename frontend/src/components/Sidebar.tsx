@@ -94,6 +94,15 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    label: 'Webhooks',
+    href: '/webhooks',
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+      </svg>
+    ),
+  },
+  {
     label: 'Connectivity Map',
     href: '/connectivity',
     icon: (
@@ -200,7 +209,19 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           </Link>
         ))}
       </nav>
-      <div className="mt-auto border-t border-slate-700 pt-2 px-3 pb-3">
+      <div className="mt-auto border-t border-slate-700 pt-2 px-3 pb-3 space-y-1">
+        <a
+          href={`${process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:8000'}/docs`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors ${collapsed ? 'justify-center' : 'gap-3'}`}
+          title={collapsed ? 'API Docs' : undefined}
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          {!collapsed && <span>API Docs</span>}
+        </a>
         <ShortcutsButton collapsed={collapsed} />
       </div>
     </aside>

@@ -7,6 +7,8 @@ from app.crud.backup import backup_crud
 from app.crud.dashboard import dashboard_crud
 from app.crud.tag import tag_crud
 from app.crud.activity import activity_crud
+from app.crud.health_check import health_check_crud
+from app.crud.webhook import webhook_crud
 
 __all__ = [
     "provider_crud",
@@ -18,4 +20,6 @@ __all__ = [
     "dashboard_crud",
     "tag_crud",
     "activity_crud",
+    "health_check_crud",
+    "webhook_crud",
 ]

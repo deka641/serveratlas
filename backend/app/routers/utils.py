@@ -26,15 +26,19 @@ async def bulk_delete_entities(
     if len(ids) > 100:
         raise HTTPException(400, "Maximum 100 items per bulk delete request")
     for entity_id in ids:
-        getter = entity_getter or crud.get
-        entity = await getter(db, entity_id)
-        if entity:
-            entity_name = name_getter(entity) if name_getter else getattr(entity, 'name', f'#{entity_id}')
-            await crud.delete(db, entity_id)
-            try:
-                await activity_crud.log_activity(db, entity_type, entity_id, entity_name, "deleted")
-            except Exception:
-                logger.warning("Failed to log activity for %s bulk-delete %s", entity_type, entity_id, exc_info=True)
+        try:
+            async with db.begin_nested():
+                getter = entity_getter or crud.get
+                entity = await getter(db, entity_id)
+                if entity:
+                    entity_name = name_getter(entity) if name_getter else getattr(entity, 'name', f'#{entity_id}')
+                    await crud.delete(db, entity_id)
+                    try:
+                        await activity_crud.log_activity(db, entity_type, entity_id, entity_name, "deleted")
+                    except Exception:
+                        logger.warning("Failed to log activity for %s bulk-delete %s", entity_type, entity_id, exc_info=True)
+        except Exception:
+            logger.warning("Failed to delete %s #%s in bulk operation", entity_type, entity_id, exc_info=True)
 
 
 def compute_changes(old_obj: Any, update_fields: dict[str, Any]) -> dict[str, dict[str, str]]:

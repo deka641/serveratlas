@@ -36,6 +36,9 @@ class Backup(Base):
     last_run_at: Mapped[datetime | None] = mapped_column()
     last_run_status: Mapped[BackupStatus] = mapped_column(default=BackupStatus.never_run)
     notes: Mapped[str | None] = mapped_column(Text)
+    last_verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    last_verified_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verification_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 

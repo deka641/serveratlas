@@ -110,6 +110,8 @@ class ServerRead(ServerBase):
     last_checked_at: datetime | None = None
     last_check_status: str | None = "unknown"
     response_time_ms: int | None = None
+    last_audited_at: datetime | None = None
+    last_audited_by: str | None = None
     created_at: datetime
     updated_at: datetime
 

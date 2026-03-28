@@ -144,6 +144,11 @@ export default function Table<T extends object>({
                     col.sortable ? 'cursor-pointer select-none hover:bg-gray-100' : ''
                   } ${colIdx === 0 ? stickyHeaderClass : ''}`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                  aria-sort={
+                    col.sortable && sortColumn === col.key
+                      ? sortDirection === 'asc' ? 'ascending' : 'descending'
+                      : col.sortable ? 'none' : undefined
+                  }
                 >
                   <span className="inline-flex items-center gap-1">
                     {col.label}

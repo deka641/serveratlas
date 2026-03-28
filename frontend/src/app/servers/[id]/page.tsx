@@ -23,6 +23,7 @@ import CopyableText from '@/components/ui/CopyableText';
 import DetailSkeleton from '@/components/ui/DetailSkeleton';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 import ChangesSummary from '@/components/domain/ChangesSummary';
+import HealthCheckHistory from '@/components/domain/HealthCheckHistory';
 
 type TabKey = 'overview' | 'applications' | 'ssh-keys' | 'connections' | 'backups';
 
@@ -75,6 +76,10 @@ export default function ServerDetailPage() {
 
   // Health check state
   const [healthCheckRunning, setHealthCheckRunning] = useState(false);
+
+  // Audit state
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [auditorName, setAuditorName] = useState('');
 
   // Activity history state
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -203,6 +208,21 @@ export default function ServerDetailPage() {
       addToast('error', e instanceof Error ? e.message : 'Health check failed');
     } finally {
       setHealthCheckRunning(false);
+    }
+  }
+
+  async function handleMarkAudited() {
+    setAuditRunning(true);
+    try {
+      await api.markServerAudited(id, auditorName.trim() ? { audited_by: auditorName.trim() } : {});
+      addToast('success', 'Server marked as audited');
+      setAuditorName('');
+      refetch();
+      loadActivities();
+    } catch (e) {
+      addToast('error', e instanceof Error ? e.message : 'Failed to mark as audited');
+    } finally {
+      setAuditRunning(false);
     }
   }
 
@@ -590,6 +610,71 @@ export default function ServerDetailPage() {
                 </div>
               </Card>
 
+              <Card title="Inventory Audit">
+                <dl className="divide-y divide-gray-100">
+                  <DetailRow
+                    label="Audit Status"
+                    value={
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={`inline-block h-2.5 w-2.5 rounded-full ${
+                            server.last_audited_at
+                              ? (() => {
+                                  const auditDate = new Date(server.last_audited_at);
+                                  const now = new Date();
+                                  const daysSince = (now.getTime() - auditDate.getTime()) / (1000 * 60 * 60 * 24);
+                                  return daysSince > 90 ? 'bg-amber-500' : 'bg-green-500';
+                                })()
+                              : 'bg-gray-300'
+                          }`}
+                        />
+                        <span className={
+                          server.last_audited_at
+                            ? (() => {
+                                const auditDate = new Date(server.last_audited_at);
+                                const now = new Date();
+                                const daysSince = (now.getTime() - auditDate.getTime()) / (1000 * 60 * 60 * 24);
+                                return daysSince > 90 ? 'text-amber-700' : 'text-green-700';
+                              })()
+                            : 'text-gray-500'
+                        }>
+                          {server.last_audited_at
+                            ? (() => {
+                                const auditDate = new Date(server.last_audited_at);
+                                const now = new Date();
+                                const daysSince = Math.floor((now.getTime() - auditDate.getTime()) / (1000 * 60 * 60 * 24));
+                                return daysSince > 90 ? `Stale (${daysSince} days ago)` : `Current (${daysSince} days ago)`;
+                              })()
+                            : 'Never audited'}
+                        </span>
+                      </span>
+                    }
+                  />
+                  <DetailRow label="Last Audited" value={server.last_audited_at ? formatDateTime(server.last_audited_at) : 'Never'} />
+                  <DetailRow label="Audited By" value={server.last_audited_by} />
+                </dl>
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Input
+                        label="Auditor name (optional)"
+                        placeholder="Your name..."
+                        value={auditorName}
+                        onChange={(e) => setAuditorName(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleMarkAudited}
+                      disabled={auditRunning}
+                    >
+                      {auditRunning ? 'Marking...' : 'Mark as Audited'}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
               <Card title="Access">
                 <dl className="divide-y divide-gray-100">
                   <DetailRow label="Login User" value={server.login_user} />
@@ -788,6 +873,9 @@ export default function ServerDetailPage() {
                 </ul>
               )}
             </Card>
+
+            {/* Health Check History */}
+            <HealthCheckHistory serverId={id} />
             </>
           )}
 

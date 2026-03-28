@@ -16,6 +16,8 @@ export interface Provider {
   website: string | null;
   support_contact: string | null;
   notes: string | null;
+  monthly_budget: number | null;
+  budget_currency: string | null;
   server_count: number;
   created_at: string;
   updated_at: string;
@@ -49,6 +51,8 @@ export interface Server {
   last_checked_at: string | null;
   last_check_status: string | null;
   response_time_ms: number | null;
+  last_audited_at: string | null;
+  last_audited_by: string | null;
   created_at: string;
   updated_at: string;
   tags?: Tag[];
@@ -133,6 +137,9 @@ export interface Backup {
   last_run_at: string | null;
   last_run_status: BackupStatus;
   notes: string | null;
+  last_verified_at: string | null;
+  last_verified_by: string | null;
+  verification_notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -172,6 +179,8 @@ export interface CostByProvider {
   total_cost: number;
   currency: string;
   server_count: number;
+  monthly_budget: number | null;
+  budget_utilization_pct: number | null;
 }
 
 export interface CurrencyTotal {
@@ -260,4 +269,40 @@ export interface DocumentationCoverage {
 export interface BulkUpdateResult {
   updated: number;
   errors: string[];
+}
+
+export interface EfficiencyMetric {
+  provider_name: string;
+  cost_per_cpu: number | null;
+  cost_per_gb_ram: number | null;
+  cost_per_gb_disk: number | null;
+  avg_cost_per_server: number | null;
+  server_count: number;
+}
+
+export interface Webhook {
+  id: number;
+  name: string;
+  url: string;
+  events: string;
+  is_active: boolean;
+  secret: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HealthCheckRecord {
+  id: number;
+  server_id: number;
+  status: string;
+  response_time_ms: number | null;
+  checked_at: string;
+}
+
+export interface UptimeStats {
+  total_checks: number;
+  healthy_checks: number;
+  uptime_pct: number | null;
+  avg_response_ms: number | null;
+  period_days: number;
 }

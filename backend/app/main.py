@@ -14,7 +14,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import engine
 from app.limiter import limiter
-from app.routers import activities, applications, backups, dashboard, providers, servers, ssh_connections, ssh_keys, tags
+from app.routers import activities, applications, backups, dashboard, health_checks, providers, servers, ssh_connections, ssh_keys, tags, webhooks
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,12 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(title="ServerAtlas", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="ServerAtlas",
+    version="1.0.0",
+    description="Infrastructure management API for servers, providers, applications, backups, and SSH connections.",
+    lifespan=lifespan,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -59,6 +64,8 @@ app.include_router(backups.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(tags.router, prefix=API_PREFIX)
 app.include_router(activities.router, prefix=API_PREFIX)
+app.include_router(health_checks.router, prefix=API_PREFIX)
+app.include_router(webhooks.router, prefix=API_PREFIX)
 
 
 @app.exception_handler(IntegrityError)
@@ -73,7 +80,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/health")
-async def health():
+@limiter.limit("60/minute")
+async def health(request: Request):
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))

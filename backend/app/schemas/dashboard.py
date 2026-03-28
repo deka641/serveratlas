@@ -19,10 +19,17 @@ class CostByProvider(BaseModel):
     total_cost: Decimal
     currency: str
     server_count: int
+    monthly_budget: Decimal | None = None
+    budget_utilization_pct: float | None = None
 
     @field_serializer('total_cost')
     @classmethod
     def serialize_cost(cls, v):
+        return float(v) if v is not None else None
+
+    @field_serializer('monthly_budget')
+    @classmethod
+    def serialize_budget(cls, v):
         return float(v) if v is not None else None
 
 
@@ -93,6 +100,15 @@ class HealthSummary(BaseModel):
     unhealthy: int = 0
     unchecked: int = 0
     last_full_check: str | None = None
+
+
+class EfficiencyMetric(BaseModel):
+    provider_name: str
+    cost_per_cpu: float | None = None
+    cost_per_gb_ram: float | None = None
+    cost_per_gb_disk: float | None = None
+    avg_cost_per_server: float | None = None
+    server_count: int = 0
 
 
 class BatchHealthCheckResult(BaseModel):

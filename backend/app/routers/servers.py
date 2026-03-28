@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import application_crud, server_crud, ssh_connection_crud, ssh_key_crud
 from app.crud.activity import activity_crud
+from app.crud.health_check import health_check_crud
 from app.database import get_db
 from app.limiter import limiter
 from app.models.server import Server as ServerModel, ServerStatus
@@ -27,6 +28,10 @@ from app.schemas.ssh_connection import SshConnectionRead
 router = APIRouter(prefix="/servers", tags=["servers"])
 
 
+class AuditRequest(BaseModel):
+    audited_by: str | None = None
+
+
 def _server_to_read(server) -> dict:
     d = {
         "id": server.id, "name": server.name, "provider_id": server.provider_id,
@@ -39,6 +44,7 @@ def _server_to_read(server) -> dict:
         "notes": server.notes, "documentation": server.documentation,
         "last_checked_at": server.last_checked_at, "last_check_status": server.last_check_status,
         "response_time_ms": server.response_time_ms,
+        "last_audited_at": server.last_audited_at, "last_audited_by": server.last_audited_by,
         "created_at": server.created_at, "updated_at": server.updated_at,
         "provider_name": server.provider.name if server.provider else None,
         "tags": [
@@ -53,11 +59,17 @@ def _server_to_read(server) -> dict:
 async def list_servers(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
     status: str | None = None, provider_id: int | None = None, search: str | None = None,
-    tag_id: int | None = None,
+    tag_id: int | None = None, stale: bool | None = None,
+    ram_min: int | None = None, ram_max: int | None = None,
+    cpu_min: int | None = None, cpu_max: int | None = None,
+    disk_min: int | None = None, disk_max: int | None = None,
+    cost_min: float | None = None, cost_max: float | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    servers = await server_crud.get_multi_filtered(db, skip=skip, limit=limit, status=status, provider_id=provider_id, search=search, tag_id=tag_id)
-    total = await server_crud.count_filtered(db, status=status, provider_id=provider_id, search=search, tag_id=tag_id)
+    range_kwargs = dict(ram_min=ram_min, ram_max=ram_max, cpu_min=cpu_min, cpu_max=cpu_max,
+                        disk_min=disk_min, disk_max=disk_max, cost_min=cost_min, cost_max=cost_max)
+    servers = await server_crud.get_multi_filtered(db, skip=skip, limit=limit, status=status, provider_id=provider_id, search=search, tag_id=tag_id, stale=stale, **range_kwargs)
+    total = await server_crud.count_filtered(db, status=status, provider_id=provider_id, search=search, tag_id=tag_id, stale=stale, **range_kwargs)
     data = [ServerRead.model_validate(_server_to_read(s)).model_dump(mode="json") for s in servers]
     return JSONResponse(content=data, headers={"X-Total-Count": str(total)})
 
@@ -123,17 +135,18 @@ async def bulk_update_servers(request: Request, body: BulkUpdateRequest, db: Asy
     result = BulkUpdateResult()
     for sid in body.ids:
         try:
-            server = await server_crud.get(db, sid)
-            if not server:
-                result.errors.append(f"Server #{sid} not found")
-                continue
-            changes = compute_changes(server, body.updates)
-            await server_crud.update(db, sid, body.updates)
-            result.updated += 1
-            try:
-                await activity_crud.log_activity(db, "server", sid, server.name, "updated", changes or body.updates)
-            except Exception:
-                logger.warning("Failed to log activity for bulk-update server %s", sid, exc_info=True)
+            async with db.begin_nested():
+                server = await server_crud.get(db, sid)
+                if not server:
+                    result.errors.append(f"Server #{sid} not found")
+                    continue
+                changes = compute_changes(server, body.updates)
+                await server_crud.update(db, sid, body.updates)
+                result.updated += 1
+                try:
+                    await activity_crud.log_activity(db, "server", sid, server.name, "updated", changes or body.updates)
+                except Exception:
+                    logger.warning("Failed to log activity for bulk-update server %s", sid, exc_info=True)
         except Exception as e:
             result.errors.append(f"Server #{sid}: {type(e).__name__}")
     return result
@@ -145,52 +158,53 @@ async def import_servers(request: Request, body: ServerImportRequest, db: AsyncS
     if len(body.servers) > 200:
         raise HTTPException(400, "Maximum 200 servers per import")
 
+    # Pre-load provider name→id map to avoid N+1 lookups
+    from app.models.provider import Provider
+    provider_result = await db.execute(sa_select(Provider.id, Provider.name))
+    provider_map = {row.name: row.id for row in provider_result.all()}
+
     result = ImportResult()
     for item in body.servers:
         try:
-            # Check for duplicates
-            existing_stmt = sa_select(ServerModel).where(ServerModel.name == item.name)
-            existing = (await db.execute(existing_stmt)).scalar_one_or_none()
-            if existing:
-                if body.skip_duplicates:
-                    result.skipped += 1
-                    continue
-                else:
-                    result.errors.append(f"Server '{item.name}' already exists")
-                    continue
+            async with db.begin_nested():
+                # Check for duplicates
+                existing_stmt = sa_select(ServerModel).where(ServerModel.name == item.name)
+                existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+                if existing:
+                    if body.skip_duplicates:
+                        result.skipped += 1
+                        continue
+                    else:
+                        result.errors.append(f"Server '{item.name}' already exists")
+                        continue
 
-            # Resolve provider by name
-            provider_id = None
-            if item.provider_name:
-                from app.crud.provider import provider_crud as prov_crud
-                provider = await prov_crud.get_by_name(db, item.provider_name)
-                if provider:
-                    provider_id = provider.id
+                # Resolve provider by name from pre-loaded map
+                provider_id = provider_map.get(item.provider_name) if item.provider_name else None
 
-            server_data = {
-                "name": item.name,
-                "hostname": item.hostname,
-                "ip_v4": item.ip_v4,
-                "ip_v6": item.ip_v6,
-                "os": item.os,
-                "cpu_cores": item.cpu_cores,
-                "ram_mb": item.ram_mb,
-                "disk_gb": item.disk_gb,
-                "location": item.location,
-                "datacenter": item.datacenter,
-                "status": item.status,
-                "monthly_cost": item.monthly_cost,
-                "cost_currency": item.cost_currency,
-                "provider_id": provider_id,
-                "login_user": item.login_user,
-                "notes": item.notes,
-            }
-            created = await server_crud.create(db, server_data)
-            try:
-                await activity_crud.log_activity(db, "server", created.id, item.name, "created")
-            except Exception:
-                logger.warning("Failed to log activity for imported server %s", item.name, exc_info=True)
-            result.created += 1
+                server_data = {
+                    "name": item.name,
+                    "hostname": item.hostname,
+                    "ip_v4": item.ip_v4,
+                    "ip_v6": item.ip_v6,
+                    "os": item.os,
+                    "cpu_cores": item.cpu_cores,
+                    "ram_mb": item.ram_mb,
+                    "disk_gb": item.disk_gb,
+                    "location": item.location,
+                    "datacenter": item.datacenter,
+                    "status": item.status,
+                    "monthly_cost": item.monthly_cost,
+                    "cost_currency": item.cost_currency,
+                    "provider_id": provider_id,
+                    "login_user": item.login_user,
+                    "notes": item.notes,
+                }
+                created = await server_crud.create(db, server_data)
+                try:
+                    await activity_crud.log_activity(db, "server", created.id, item.name, "created")
+                except Exception:
+                    logger.warning("Failed to log activity for imported server %s", item.name, exc_info=True)
+                result.created += 1
         except Exception as e:
             result.errors.append(f"Error importing '{item.name}': {str(e)}")
     return result
@@ -255,6 +269,25 @@ async def delete_server(request: Request, id: int, db: AsyncSession = Depends(ge
         await activity_crud.log_activity(db, "server", id, server.name, "deleted")
     except Exception:
         logger.warning("Failed to log activity for server delete %s", id, exc_info=True)
+
+
+@router.post("/{id}/mark-audited", status_code=200)
+@limiter.limit("30/minute")
+async def mark_server_audited(request: Request, id: int, body: AuditRequest = AuditRequest(), db: AsyncSession = Depends(get_db)):
+    server = await server_crud.get(db, id)
+    if not server:
+        raise HTTPException(404, "Server not found")
+    update_data = {
+        "last_audited_at": datetime.utcnow(),
+        "last_audited_by": body.audited_by,
+    }
+    await server_crud.update(db, id, update_data)
+    try:
+        await activity_crud.log_activity(db, "server", id, server.name, "audited", {"audited_by": body.audited_by} if body.audited_by else None)
+    except Exception:
+        logger.warning("Failed to log activity for server audit %s", id, exc_info=True)
+    server = await server_crud.get_with_provider(db, id)
+    return _server_to_read(server)
 
 
 @router.get("/{id}/applications", response_model=list[ApplicationRead])
@@ -330,6 +363,10 @@ async def update_health_check(request: Request, id: int, data: HealthCheckUpdate
         "response_time_ms": data.response_time_ms,
     }
     await server_crud.update(db, id, update_data)
+    try:
+        await health_check_crud.create(db, id, data.status, data.response_time_ms)
+    except Exception:
+        logger.warning("Failed to log health check history for server %s", id, exc_info=True)
     server = await server_crud.get_with_provider(db, id)
     return _server_to_read(server)
 
@@ -380,6 +417,10 @@ async def run_health_check(request: Request, id: int, db: AsyncSession = Depends
         "response_time_ms": response_time_ms,
     }
     await server_crud.update(db, id, update_data)
+    try:
+        await health_check_crud.create(db, id, status, response_time_ms)
+    except Exception:
+        logger.warning("Failed to log health check history for server %s", id, exc_info=True)
     server = await server_crud.get_with_provider(db, id)
     return _server_to_read(server)
 
@@ -439,6 +480,10 @@ async def batch_health_check(request: Request, db: AsyncSession = Depends(get_db
                     "last_check_status": s,
                     "response_time_ms": rt,
                 })
+                try:
+                    await health_check_crud.create(db, srv.id, s, rt)
+                except Exception:
+                    logger.warning("Failed to log health check history for server %s", srv.id, exc_info=True)
                 checked += 1
                 if s == "healthy":
                     healthy += 1

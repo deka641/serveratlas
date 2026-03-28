@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/ui/Input';
+import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
 import type { Provider } from '@/lib/types';
@@ -13,6 +14,8 @@ interface ProviderFormData {
   website: string;
   support_contact: string;
   notes: string;
+  monthly_budget: number | null;
+  budget_currency: string;
 }
 
 interface ProviderFormProps {
@@ -28,14 +31,18 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
   const [website, setWebsite] = useState(initialData?.website ?? '');
   const [supportContact, setSupportContact] = useState(initialData?.support_contact ?? '');
   const [notes, setNotes] = useState(initialData?.notes ?? '');
+  const [monthlyBudget, setMonthlyBudget] = useState(initialData?.monthly_budget != null ? String(initialData.monthly_budget) : '');
+  const [budgetCurrency, setBudgetCurrency] = useState(initialData?.budget_currency ?? 'EUR');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const isDirty = JSON.stringify({ name, website, supportContact, notes }) !==
+  const isDirty = JSON.stringify({ name, website, supportContact, notes, monthlyBudget, budgetCurrency }) !==
     JSON.stringify({
       name: initialData?.name ?? '',
       website: initialData?.website ?? '',
       supportContact: initialData?.support_contact ?? '',
       notes: initialData?.notes ?? '',
+      monthlyBudget: initialData?.monthly_budget != null ? String(initialData.monthly_budget) : '',
+      budgetCurrency: initialData?.budget_currency ?? 'EUR',
     });
   useUnsavedChanges(isDirty);
 
@@ -78,6 +85,8 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
       website: website.trim() || '',
       support_contact: supportContact.trim() || '',
       notes: notes.trim() || '',
+      monthly_budget: monthlyBudget.trim() ? Number(monthlyBudget) : null,
+      budget_currency: budgetCurrency,
     });
   };
 
@@ -110,6 +119,27 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
         placeholder="support@example.com or phone number"
         disabled={loading}
       />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Input
+          label="Monthly Budget"
+          type="number"
+          value={monthlyBudget}
+          onChange={(e) => setMonthlyBudget(e.target.value)}
+          placeholder="e.g. 500.00"
+          disabled={loading}
+        />
+        <Select
+          label="Budget Currency"
+          value={budgetCurrency}
+          onChange={(e) => setBudgetCurrency(e.target.value)}
+          disabled={loading}
+          options={[
+            { value: 'EUR', label: 'EUR' },
+            { value: 'USD', label: 'USD' },
+            { value: 'GBP', label: 'GBP' },
+          ]}
+        />
+      </div>
       <Textarea
         label="Notes"
         value={notes}

@@ -159,7 +159,7 @@ class DashboardCRUD:
 
 
     async def get_overdue_backups(self, db: AsyncSession) -> list[OverdueBackup]:
-        from sqlalchemy import literal_column, type_coerce, Integer as SAInteger
+        from sqlalchemy import type_coerce, Integer as SAInteger
 
         # Compute deadline per frequency directly in SQL
         deadline_expr = case(
@@ -169,9 +169,8 @@ class DashboardCRUD:
             (Backup.frequency == BackupFrequency.monthly, Backup.last_run_at + timedelta(hours=744)),
         )
 
-        now = datetime.utcnow()
         hours_overdue_expr = func.floor(
-            func.extract('epoch', literal_column(f"'{now.isoformat()}'::timestamp") - deadline_expr) / 3600
+            func.extract('epoch', func.now() - deadline_expr) / 3600
         )
 
         stmt = (
@@ -190,7 +189,7 @@ class DashboardCRUD:
                 Backup.frequency != BackupFrequency.manual,
                 Backup.last_run_at.isnot(None),
                 deadline_expr.isnot(None),
-                literal_column(f"'{now.isoformat()}'::timestamp") > deadline_expr,
+                func.now() > deadline_expr,
             )
             .order_by(hours_overdue_expr.desc())
         )

@@ -48,6 +48,33 @@
   to { width: 0%; }
 }
 
+/* #17: Consistent report table formatting */
+@media screen {
+  .report-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: white;
+  }
+}
+
+.report-table thead tr {
+  border-bottom: 2px solid #d1d5db;
+}
+
+.report-table tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.report-table tbody tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+
+/* #16: Print-only report header */
+@media screen {
+  .print-only-header { display: none; }
+}
+
 @media print {
   @page {
     margin: 1.5cm 1cm;
@@ -77,7 +104,10 @@
   .bg-green-500, .bg-red-500, .bg-gray-300, .bg-amber-500 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .bg-green-50, .bg-red-50, .bg-amber-50 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .text-green-800, .text-red-800, .text-amber-800 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .text-green-600, .text-red-600, .text-amber-600, .text-gray-400 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .border-green-200, .border-red-200, .border-amber-200 { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .report-table tbody tr:nth-child(even) { background-color: #f9fafb !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .report-table thead { position: static; }
 
   /* Hide sidebar and make main content full-width */
   aside, .md\:flex-shrink-0 { display: none !important; }

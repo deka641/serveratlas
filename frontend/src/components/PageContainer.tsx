@@ -1,15 +1,13 @@
 'use client';
 
 import { ReactNode, useEffect } from 'react';
-import Link from 'next/link';
 import Header from '@/components/Header';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import type { BreadcrumbItem } from '@/components/ui/Breadcrumbs';
 import { useMobileSidebar } from '@/components/MobileSidebarContext';
 
-export interface Breadcrumb {
-  label: string;
-  href?: string;
-}
+export type Breadcrumb = BreadcrumbItem;
 
 interface PageContainerProps {
   title: string;
@@ -41,20 +39,7 @@ export default function PageContainer({
       <Header title={title} onMenuClick={openSidebar ?? undefined}>{action}</Header>
       <main className="flex-1 p-4 sm:p-6">
         {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav className="mb-4 flex items-center gap-1.5 text-sm text-gray-500">
-            {breadcrumbs.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-1.5">
-                {i > 0 && <span className="text-gray-300">/</span>}
-                {crumb.href ? (
-                  <Link href={crumb.href} className="hover:text-gray-700 hover:underline">
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <span className="text-gray-900">{crumb.label}</span>
-                )}
-              </span>
-            ))}
-          </nav>
+          <Breadcrumbs items={[{ label: 'Home', href: '/' }, ...breadcrumbs]} />
         )}
         {loading ? (
           <div className="flex h-64 items-center justify-center">

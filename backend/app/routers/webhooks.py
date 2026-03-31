@@ -97,4 +97,4 @@ async def test_webhook(request: Request, id: int, db: AsyncSession = Depends(get
         return {"status": "sent"}
     except Exception as e:
         logger.warning("Webhook test failed for %s: %s", webhook.url, e, exc_info=True)
-        return {"status": "failed", "error": str(e)}
+        return {"status": "failed", "error": "Webhook delivery failed. Check the URL and try again."}

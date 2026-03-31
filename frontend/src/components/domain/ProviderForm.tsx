@@ -46,24 +46,37 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
     });
   useUnsavedChanges(isDirty);
 
-  function validateField(fieldName: string, value: string | number | null | undefined) {
-    let error = '';
+  function getFieldError(fieldName: string, value: string | number | null | undefined): string {
     switch (fieldName) {
       case 'name':
         if (!value || !String(value).trim()) {
-          error = 'Name is required';
+          return 'Name is required';
         }
         break;
       case 'website':
         if (value && String(value).trim()) {
           const urlStr = String(value).trim();
           if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
-            error = 'Website must start with http:// or https://';
+            return 'Website must start with http:// or https://';
           }
         }
         break;
     }
-    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+    return '';
+  }
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: getFieldError(fieldName, value) }));
+  }
+
+  function clearFieldErrorIfValid(fieldName: string, value: string | number | null | undefined) {
+    if (fieldErrors[fieldName] && !getFieldError(fieldName, value)) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+    }
   }
 
   const handleSubmit = (e: FormEvent) => {
@@ -95,7 +108,7 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
       <Input
         label="Name"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => { setName(e.target.value); clearFieldErrorIfValid('name', e.target.value); }}
         onBlur={(e) => validateField('name', e.target.value)}
         placeholder="e.g. AWS, Hetzner, DigitalOcean"
         required
@@ -105,7 +118,7 @@ export default function ProviderForm({ initialData, onSubmit, loading = false, e
       <Input
         label="Website"
         value={website}
-        onChange={(e) => setWebsite(e.target.value)}
+        onChange={(e) => { setWebsite(e.target.value); clearFieldErrorIfValid('website', e.target.value); }}
         onBlur={(e) => validateField('website', e.target.value)}
         error={fieldErrors.website}
         placeholder="https://example.com"

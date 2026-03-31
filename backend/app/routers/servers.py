@@ -17,6 +17,7 @@ from app.database import get_db
 from app.limiter import limiter
 from app.models.server import Server as ServerModel, ServerStatus
 from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
+from app.services.webhook_dispatcher import dispatch_event
 
 logger = logging.getLogger(__name__)
 from app.schemas.application import ApplicationRead
@@ -206,7 +207,8 @@ async def import_servers(request: Request, body: ServerImportRequest, db: AsyncS
                     logger.warning("Failed to log activity for imported server %s", item.name, exc_info=True)
                 result.created += 1
         except Exception as e:
-            result.errors.append(f"Error importing '{item.name}': {str(e)}")
+            logger.warning("Error importing server '%s': %s", item.name, e, exc_info=True)
+            result.errors.append(f"Error importing '{item.name}': {type(e).__name__}")
     return result
 
 
@@ -238,6 +240,10 @@ async def create_server(request: Request, data: ServerCreate, db: AsyncSession =
         await activity_crud.log_activity(db, "server", server.id, data.name, "created")
     except Exception:
         logger.warning("Failed to log activity for server create %s", server.id, exc_info=True)
+    try:
+        await dispatch_event(db, "server.created", {"id": server.id, "name": server.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for server create %s", server.id, exc_info=True)
     return _server_to_read(server)
 
 
@@ -255,6 +261,10 @@ async def update_server(request: Request, id: int, data: ServerUpdate, db: Async
         await activity_crud.log_activity(db, "server", id, data.name or server.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for server update %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "server.updated", {"id": id, "name": server.name, "changes": changes})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for server update %s", id, exc_info=True)
     return _server_to_read(server)
 
 
@@ -269,6 +279,10 @@ async def delete_server(request: Request, id: int, db: AsyncSession = Depends(ge
         await activity_crud.log_activity(db, "server", id, server.name, "deleted")
     except Exception:
         logger.warning("Failed to log activity for server delete %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "server.deleted", {"id": id, "name": server.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for server delete %s", id, exc_info=True)
 
 
 @router.post("/{id}/mark-audited", status_code=200)
@@ -288,6 +302,41 @@ async def mark_server_audited(request: Request, id: int, body: AuditRequest = Au
         logger.warning("Failed to log activity for server audit %s", id, exc_info=True)
     server = await server_crud.get_with_provider(db, id)
     return _server_to_read(server)
+
+
+class BulkAuditRequest(BaseModel):
+    ids: list[int] = Field(..., max_length=100)
+    audited_by: str | None = None
+
+
+@router.post("/bulk-mark-audited", status_code=200)
+@limiter.limit("30/minute")
+async def bulk_mark_audited(request: Request, body: BulkAuditRequest, db: AsyncSession = Depends(get_db)):
+    if len(body.ids) > 100:
+        raise HTTPException(400, "Maximum 100 servers per bulk audit")
+    updated = 0
+    errors: list[str] = []
+    now = datetime.utcnow()
+    for sid in body.ids:
+        try:
+            async with db.begin_nested():
+                server = await server_crud.get(db, sid)
+                if not server:
+                    errors.append(f"Server #{sid} not found")
+                    continue
+                await server_crud.update(db, sid, {
+                    "last_audited_at": now,
+                    "last_audited_by": body.audited_by,
+                })
+                updated += 1
+                try:
+                    await activity_crud.log_activity(db, "server", sid, server.name, "audited",
+                                                     {"audited_by": body.audited_by} if body.audited_by else None)
+                except Exception:
+                    logger.warning("Failed to log activity for bulk audit server %s", sid, exc_info=True)
+        except Exception as e:
+            errors.append(f"Server #{sid}: {type(e).__name__}")
+    return {"updated": updated, "errors": errors}
 
 
 @router.get("/{id}/applications", response_model=list[ApplicationRead])
@@ -357,6 +406,7 @@ async def update_health_check(request: Request, id: int, data: HealthCheckUpdate
     server = await server_crud.get(db, id)
     if not server:
         raise HTTPException(404, "Server not found")
+    old_status = server.last_check_status
     update_data = {
         "last_checked_at": datetime.utcnow(),
         "last_check_status": data.status,
@@ -367,6 +417,14 @@ async def update_health_check(request: Request, id: int, data: HealthCheckUpdate
         await health_check_crud.create(db, id, data.status, data.response_time_ms)
     except Exception:
         logger.warning("Failed to log health check history for server %s", id, exc_info=True)
+    # Dispatch webhook on health status transitions
+    try:
+        if data.status == "unhealthy" and old_status != "unhealthy":
+            await dispatch_event(db, "health_check.failed", {"id": id, "name": server.name, "status": data.status})
+        elif data.status == "healthy" and old_status == "unhealthy":
+            await dispatch_event(db, "health_check.recovered", {"id": id, "name": server.name, "status": data.status})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for health check %s", id, exc_info=True)
     server = await server_crud.get_with_provider(db, id)
     return _server_to_read(server)
 
@@ -421,6 +479,15 @@ async def run_health_check(request: Request, id: int, db: AsyncSession = Depends
         await health_check_crud.create(db, id, status, response_time_ms)
     except Exception:
         logger.warning("Failed to log health check history for server %s", id, exc_info=True)
+    # Dispatch webhook on health status transitions
+    old_status = server.last_check_status
+    try:
+        if status == "unhealthy" and old_status != "unhealthy":
+            await dispatch_event(db, "health_check.failed", {"id": id, "name": server.name, "status": status})
+        elif status == "healthy" and old_status == "unhealthy":
+            await dispatch_event(db, "health_check.recovered", {"id": id, "name": server.name, "status": status})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for health check %s", id, exc_info=True)
     server = await server_crud.get_with_provider(db, id)
     return _server_to_read(server)
 
@@ -474,6 +541,7 @@ async def batch_health_check(request: Request, db: AsyncSession = Depends(get_db
             return
         async with semaphore:
             try:
+                old_status = srv.last_check_status
                 s, rt = await _check_single_server(host)
                 await server_crud.update(db, srv.id, {
                     "last_checked_at": datetime.utcnow(),
@@ -484,6 +552,14 @@ async def batch_health_check(request: Request, db: AsyncSession = Depends(get_db
                     await health_check_crud.create(db, srv.id, s, rt)
                 except Exception:
                     logger.warning("Failed to log health check history for server %s", srv.id, exc_info=True)
+                # Dispatch webhook on health status transitions
+                try:
+                    if s == "unhealthy" and old_status != "unhealthy":
+                        await dispatch_event(db, "health_check.failed", {"id": srv.id, "name": srv.name, "status": s})
+                    elif s == "healthy" and old_status == "unhealthy":
+                        await dispatch_event(db, "health_check.recovered", {"id": srv.id, "name": srv.name, "status": s})
+                except Exception:
+                    logger.warning("Failed to dispatch webhook for batch health check %s", srv.id, exc_info=True)
                 checked += 1
                 if s == "healthy":
                     healthy += 1

@@ -12,7 +12,10 @@ export function useData<T>(fetcher: () => Promise<T>, deps: unknown[] = []) {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    setLoading(true);
+    // Only show loading state on initial fetch, not on refetch (keep previous data)
+    if (data === null) {
+      setLoading(true);
+    }
     setError(null);
     fetcher()
       .then((result) => {

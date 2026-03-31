@@ -9,6 +9,7 @@ from app.crud import backup_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
 from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
+from app.services.webhook_dispatcher import dispatch_event
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -103,6 +104,10 @@ async def create_backup(request: Request, data: BackupCreate, db: AsyncSession =
         await activity_crud.log_activity(db, "backup", backup.id, data.name, "created")
     except Exception:
         logger.warning("Failed to log activity for backup create %s", backup.id, exc_info=True)
+    try:
+        await dispatch_event(db, "backup.created", {"id": backup.id, "name": data.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for backup create %s", backup.id, exc_info=True)
     return BackupRead.model_validate(_backup_to_read(detail))
 
 
@@ -120,6 +125,10 @@ async def update_backup(request: Request, id: int, data: BackupUpdate, db: Async
         await activity_crud.log_activity(db, "backup", id, data.name or detail.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for backup update %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "backup.updated", {"id": id, "name": detail.name, "changes": changes})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for backup update %s", id, exc_info=True)
     return BackupRead.model_validate(_backup_to_read(detail))
 
 
@@ -134,3 +143,7 @@ async def delete_backup(request: Request, id: int, db: AsyncSession = Depends(ge
         await activity_crud.log_activity(db, "backup", id, backup.name, "deleted")
     except Exception:
         logger.warning("Failed to log activity for backup delete %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "backup.deleted", {"id": id, "name": backup.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for backup delete %s", id, exc_info=True)

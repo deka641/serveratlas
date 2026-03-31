@@ -131,6 +131,8 @@ export const api = {
     request<{ created: number; skipped: number; errors: string[] }>('/servers/import', { method: 'POST', body: JSON.stringify(data) }),
   markServerAudited: (id: number, data?: { audited_by?: string }) =>
     request<Server>(`/servers/${id}/mark-audited`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  bulkMarkAudited: (ids: number[], audited_by?: string) =>
+    request<{ updated: number; errors: string[] }>('/servers/bulk-mark-audited', { method: 'POST', body: JSON.stringify({ ids, audited_by }) }),
 
   // SSH Keys
   listSshKeys: (params?: { search?: string; skip?: number; limit?: number }) => {

@@ -95,6 +95,35 @@ const activityCsvColumns = [
   { key: 'changes' as const, label: 'Changes', formatter: (a: Activity) => a.changes || '' },
 ];
 
+function ExpandableChanges({ changes }: { changes: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!changes) return <span className="text-gray-400">&mdash;</span>;
+
+  const isLong = changes.length > 60;
+
+  if (!isLong) return <ChangesSummary changes={changes} />;
+
+  return (
+    <div>
+      {expanded ? (
+        <div>
+          <ChangesSummary changes={changes} />
+          <button onClick={() => setExpanded(false)} className="mt-1 text-xs text-blue-600 hover:underline">
+            Collapse
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setExpanded(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          Show changes
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ActivitiesPageContent() {
   const { addToast } = useToast();
   const [activityStats, setActivityStats] = useState<{ total_count: number; oldest_entry: string | null } | null>(null);
@@ -235,7 +264,7 @@ function ActivitiesPageContent() {
     {
       key: 'changes',
       label: 'Changes',
-      render: (activity) => <ChangesSummary changes={activity.changes} />,
+      render: (activity) => <ExpandableChanges changes={activity.changes} />,
     },
   ];
 

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import type { DashboardStats, BackupCoverage } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import { useCountUp } from '@/hooks/useCountUp';
@@ -18,6 +19,7 @@ interface StatCardProps {
   subtitleColor?: string;
   accentColor: string;
   animIndex?: number;
+  href?: string;
 }
 
 function StatCard({
@@ -28,12 +30,13 @@ function StatCard({
   subtitleColor,
   accentColor,
   animIndex = 0,
+  href,
 }: StatCardProps) {
   const animatedValue = useCountUp(value);
   const animatedSubtitleValue = useCountUp(subtitleValue ?? 0);
 
-  return (
-    <Card className={`border-l-4 ${accentColor} animate-fadeInUp`} style={{ animationDelay: `${animIndex * 75}ms` }}>
+  const content = (
+    <Card className={`border-l-4 ${accentColor} animate-fadeInUp ${href ? 'hover:bg-gray-50 transition-colors cursor-pointer' : ''}`} style={{ animationDelay: `${animIndex * 75}ms` }}>
       <div className="flex flex-col">
         <span className="text-sm font-medium text-gray-500">{label}</span>
         <span className="mt-1 text-3xl font-bold text-gray-900">
@@ -49,6 +52,11 @@ function StatCard({
       </div>
     </Card>
   );
+
+  if (href) {
+    return <Link href={href} className="block">{content}</Link>;
+  }
+  return content;
 }
 
 export default function StatsCards({ stats, backupCoverage }: StatsCardsProps) {
@@ -62,6 +70,7 @@ export default function StatsCards({ stats, backupCoverage }: StatsCardsProps) {
         subtitleColor="text-green-600"
         accentColor="border-l-blue-500"
         animIndex={0}
+        href="/servers"
       />
       {stats.unhealthy_servers > 0 && (
         <StatCard
@@ -69,6 +78,7 @@ export default function StatsCards({ stats, backupCoverage }: StatsCardsProps) {
           value={stats.unhealthy_servers}
           accentColor="border-l-red-500"
           animIndex={1}
+          href="/servers?status=active"
         />
       )}
       <StatCard
@@ -76,18 +86,21 @@ export default function StatsCards({ stats, backupCoverage }: StatsCardsProps) {
         value={stats.total_providers}
         accentColor="border-l-purple-500"
         animIndex={1}
+        href="/providers"
       />
       <StatCard
         label="Applications"
         value={stats.total_applications}
         accentColor="border-l-indigo-500"
         animIndex={2}
+        href="/applications"
       />
       <StatCard
         label="SSH Keys"
         value={stats.total_ssh_keys}
         accentColor="border-l-teal-500"
         animIndex={3}
+        href="/ssh-keys"
       />
       <StatCard
         label="Backups"
@@ -97,6 +110,7 @@ export default function StatsCards({ stats, backupCoverage }: StatsCardsProps) {
         subtitleColor={stats.failing_backups > 0 ? 'text-red-600' : undefined}
         accentColor="border-l-amber-500"
         animIndex={4}
+        href="/backups"
       />
       {backupCoverage && (
         <StatCard

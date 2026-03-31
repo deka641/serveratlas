@@ -84,6 +84,14 @@ export default function DashboardPage() {
   } = useData(() => api.getDocumentationCoverage());
 
   const [batchChecking, setBatchChecking] = useState(false);
+  const [autoHealthCheck, setAutoHealthCheck] = useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('dashboard-auto-health-check');
+      return stored ? Number(stored) : null;
+    }
+    return null;
+  });
+  const [nextCheckIn, setNextCheckIn] = useState<number | null>(null);
   const [autoRefresh, setAutoRefresh] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('dashboard-auto-refresh');
@@ -127,6 +135,48 @@ export default function DashboardPage() {
     const id = setInterval(handleRefreshAll, autoRefresh * 1000);
     return () => clearInterval(id);
   }, [autoRefresh, handleRefreshAll]);
+
+  // Auto health check timer
+  useEffect(() => {
+    if (!autoHealthCheck) {
+      setNextCheckIn(null);
+      return;
+    }
+    setNextCheckIn(autoHealthCheck);
+    const countdown = setInterval(() => {
+      setNextCheckIn((prev) => {
+        if (prev === null || prev <= 1) return autoHealthCheck;
+        return prev - 1;
+      });
+    }, 1000);
+    const check = setInterval(async () => {
+      try {
+        const result = await api.batchHealthCheck();
+        if (result.unhealthy > 0) {
+          addToast('error', `Auto health check: ${result.unhealthy} unhealthy server(s) detected`);
+        }
+        refetchHealthSummary();
+        refetchServers();
+        refetchStats();
+      } catch {
+        // silent failure for auto checks
+      }
+      setNextCheckIn(autoHealthCheck);
+    }, autoHealthCheck * 1000);
+    return () => {
+      clearInterval(countdown);
+      clearInterval(check);
+    };
+  }, [autoHealthCheck, addToast, refetchHealthSummary, refetchServers, refetchStats]);
+
+  function handleAutoHealthCheckChange(value: string) {
+    const num = value ? Number(value) : null;
+    setAutoHealthCheck(num);
+    if (typeof window !== 'undefined') {
+      if (num) localStorage.setItem('dashboard-auto-health-check', String(num));
+      else localStorage.removeItem('dashboard-auto-health-check');
+    }
+  }
 
   function handleAutoRefreshChange(value: string) {
     const num = value ? Number(value) : null;
@@ -242,9 +292,28 @@ export default function DashboardPage() {
         <section>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Infrastructure Health</h2>
-            <Button variant="secondary" size="sm" onClick={handleBatchHealthCheck} disabled={batchChecking}>
-              {batchChecking ? 'Checking...' : 'Check All Servers'}
-            </Button>
+            <div className="flex items-center gap-2">
+              {nextCheckIn !== null && autoHealthCheck && (
+                <span className="text-xs text-gray-400">
+                  Next check in {Math.floor(nextCheckIn / 60)}:{String(nextCheckIn % 60).padStart(2, '0')}
+                </span>
+              )}
+              <select
+                value={autoHealthCheck ?? ''}
+                onChange={(e) => handleAutoHealthCheckChange(e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700"
+                aria-label="Auto health check interval"
+              >
+                <option value="">Auto Check: Off</option>
+                <option value="300">Auto Check: 5m</option>
+                <option value="900">Auto Check: 15m</option>
+                <option value="1800">Auto Check: 30m</option>
+                <option value="3600">Auto Check: 60m</option>
+              </select>
+              <Button variant="secondary" size="sm" onClick={handleBatchHealthCheck} disabled={batchChecking}>
+                {batchChecking ? 'Checking...' : 'Check All Servers'}
+              </Button>
+            </div>
           </div>
           {healthSummaryLoading ? (
             <SectionSkeleton height="h-20" />
@@ -276,18 +345,18 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-4 text-sm">
-                  <span className="flex items-center gap-1.5">
+                  <Link href="/servers?status=active" className="flex items-center gap-1.5 hover:underline">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />
                     {healthSummary.healthy} healthy
-                  </span>
-                  <span className="flex items-center gap-1.5">
+                  </Link>
+                  <Link href="/servers?status=active" className="flex items-center gap-1.5 hover:underline">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
                     {healthSummary.unhealthy} unhealthy
-                  </span>
-                  <span className="flex items-center gap-1.5">
+                  </Link>
+                  <Link href="/servers" className="flex items-center gap-1.5 hover:underline">
                     <span className="inline-block h-2.5 w-2.5 rounded-full bg-gray-400" />
                     {healthSummary.unchecked} unchecked
-                  </span>
+                  </Link>
                   {healthSummary.last_full_check && (
                     <span className="ml-auto text-xs text-gray-500">
                       Last check: {formatDateTime(healthSummary.last_full_check)}

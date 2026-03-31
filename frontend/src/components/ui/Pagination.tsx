@@ -26,12 +26,11 @@ export default function Pagination({ page, pageSize, total, onPageChange }: Pagi
       setJumpValue('');
       setJumpError(false);
     } else if (jumpValue.trim() !== '') {
-      // Clamp to nearest valid page
+      // Clamp to nearest valid page and navigate without showing error
       const clamped = Math.max(1, Math.min(totalPages, pageNum || 1));
       onPageChange(clamped - 1);
       setJumpValue('');
-      setJumpError(true);
-      setTimeout(() => setJumpError(false), 1500);
+      setJumpError(false);
     }
   }
 

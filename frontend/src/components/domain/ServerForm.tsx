@@ -86,12 +86,11 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
   });
   useUnsavedChanges(isDirty);
 
-  function validateField(name: string, value: string | number | null | undefined) {
-    let error = '';
-    switch (name) {
+  function getFieldError(fieldName: string, value: string | number | null | undefined): string {
+    switch (fieldName) {
       case 'name':
         if (!value || !String(value).trim()) {
-          error = 'Name is required';
+          return 'Name is required';
         }
         break;
       case 'ip_v4':
@@ -99,11 +98,11 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           const ipv4Pattern = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
           const ipStr = String(value).trim();
           if (!ipv4Pattern.test(ipStr)) {
-            error = 'Invalid IPv4 address format';
+            return 'Invalid IPv4 address format';
           } else {
             const octets = ipStr.split('.').map(Number);
             if (octets.some((o) => o < 0 || o > 255)) {
-              error = 'Each octet must be between 0 and 255';
+              return 'Each octet must be between 0 and 255';
             }
           }
         }
@@ -113,19 +112,33 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           try {
             new URL(`http://[${String(value).trim()}]`);
           } catch {
-            error = 'Invalid IPv6 address format';
+            return 'Invalid IPv6 address format';
           }
         }
         break;
       case 'monthly_cost':
         if (value !== null && value !== undefined && String(value).trim() !== '') {
           if (Number(value) < 0) {
-            error = 'Monthly cost must be 0 or greater';
+            return 'Monthly cost must be 0 or greater';
           }
         }
         break;
     }
-    setFieldErrors((prev) => ({ ...prev, [name]: error }));
+    return '';
+  }
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: getFieldError(fieldName, value) }));
+  }
+
+  function clearFieldErrorIfValid(fieldName: string, value: string | number | null | undefined) {
+    if (fieldErrors[fieldName] && !getFieldError(fieldName, value)) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+    }
   }
 
   const providerOptions = (providers ?? []).map((p) => ({
@@ -198,7 +211,7 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           <Input
             label="Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); clearFieldErrorIfValid('name', e.target.value); }}
             onBlur={(e) => validateField('name', e.target.value)}
             error={fieldErrors.name}
             required
@@ -233,7 +246,7 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           <Input
             label="IPv4"
             value={ipV4}
-            onChange={(e) => setIpV4(e.target.value)}
+            onChange={(e) => { setIpV4(e.target.value); clearFieldErrorIfValid('ip_v4', e.target.value); }}
             onBlur={(e) => validateField('ip_v4', e.target.value)}
             error={fieldErrors.ip_v4}
             placeholder="e.g. 192.168.1.1"
@@ -241,7 +254,7 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           <Input
             label="IPv6"
             value={ipV6}
-            onChange={(e) => setIpV6(e.target.value)}
+            onChange={(e) => { setIpV6(e.target.value); clearFieldErrorIfValid('ip_v6', e.target.value); }}
             onBlur={(e) => validateField('ip_v6', e.target.value)}
             error={fieldErrors.ip_v6}
             placeholder="e.g. ::1"
@@ -318,7 +331,7 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
             step="0.01"
             min={0}
             value={monthlyCost}
-            onChange={(e) => setMonthlyCost(e.target.value)}
+            onChange={(e) => { setMonthlyCost(e.target.value); clearFieldErrorIfValid('monthly_cost', e.target.value); }}
             onBlur={(e) => validateField('monthly_cost', e.target.value)}
             error={fieldErrors.monthly_cost}
           />

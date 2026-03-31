@@ -45,16 +45,29 @@ export default function SshKeyForm({ initialData, onSubmit, loading, error }: Ss
     });
   useUnsavedChanges(isDirty);
 
-  function validateField(fieldName: string, value: string | number | null | undefined) {
-    let error = '';
+  function getFieldError(fieldName: string, value: string | number | null | undefined): string {
     switch (fieldName) {
       case 'name':
         if (!value || !String(value).trim()) {
-          error = 'Name is required';
+          return 'Name is required';
         }
         break;
     }
-    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+    return '';
+  }
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: getFieldError(fieldName, value) }));
+  }
+
+  function clearFieldErrorIfValid(fieldName: string, value: string | number | null | undefined) {
+    if (fieldErrors[fieldName] && !getFieldError(fieldName, value)) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+    }
   }
 
   const handleSubmit = (e: FormEvent) => {
@@ -81,7 +94,7 @@ export default function SshKeyForm({ initialData, onSubmit, loading, error }: Ss
       <Input
         label="Name"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => { setName(e.target.value); clearFieldErrorIfValid('name', e.target.value); }}
         onBlur={(e) => validateField('name', e.target.value)}
         error={fieldErrors.name}
         required

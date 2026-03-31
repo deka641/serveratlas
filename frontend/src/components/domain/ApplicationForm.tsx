@@ -55,24 +55,23 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
     });
   useUnsavedChanges(isDirty);
 
-  function validateField(fieldName: string, value: string | number | null | undefined) {
-    let error = '';
+  function getFieldError(fieldName: string, value: string | number | null | undefined): string {
     switch (fieldName) {
       case 'name':
         if (!value || !String(value).trim()) {
-          error = 'Name is required';
+          return 'Name is required';
         }
         break;
       case 'server_id':
         if (!value || !String(value).trim()) {
-          error = 'Server is required';
+          return 'Server is required';
         }
         break;
       case 'port':
         if (value !== null && value !== undefined && String(value).trim() !== '') {
           const portNum = Number(value);
           if (portNum < 1 || portNum > 65535) {
-            error = 'Port must be between 1 and 65535';
+            return 'Port must be between 1 and 65535';
           }
         }
         break;
@@ -80,12 +79,26 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         if (value && String(value).trim()) {
           const urlStr = String(value).trim();
           if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
-            error = 'URL must start with http:// or https://';
+            return 'URL must start with http:// or https://';
           }
         }
         break;
     }
-    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+    return '';
+  }
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: getFieldError(fieldName, value) }));
+  }
+
+  function clearFieldErrorIfValid(fieldName: string, value: string | number | null | undefined) {
+    if (fieldErrors[fieldName] && !getFieldError(fieldName, value)) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+    }
   }
 
   if (serversLoading) {
@@ -133,7 +146,7 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
       <Input
         label="Name"
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => { setName(e.target.value); clearFieldErrorIfValid('name', e.target.value); }}
         onBlur={(e) => validateField('name', e.target.value)}
         error={fieldErrors.name}
         required
@@ -143,7 +156,7 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
       <Select
         label="Server"
         value={serverId}
-        onChange={(e) => setServerId(e.target.value)}
+        onChange={(e) => { setServerId(e.target.value); clearFieldErrorIfValid('server_id', e.target.value); }}
         onBlur={(e) => validateField('server_id', e.target.value)}
         error={fieldErrors.server_id}
         options={serverOptions}
@@ -162,7 +175,7 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
         label="Port"
         type="number"
         value={port}
-        onChange={(e) => setPort(e.target.value)}
+        onChange={(e) => { setPort(e.target.value); clearFieldErrorIfValid('port', e.target.value); }}
         onBlur={(e) => validateField('port', e.target.value)}
         error={fieldErrors.port}
         placeholder="8080"
@@ -180,7 +193,7 @@ export default function ApplicationForm({ initialData, onSubmit, loading, error 
       <Input
         label="URL"
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
+        onChange={(e) => { setUrl(e.target.value); clearFieldErrorIfValid('url', e.target.value); }}
         onBlur={(e) => validateField('url', e.target.value)}
         error={fieldErrors.url}
         placeholder="https://example.com"

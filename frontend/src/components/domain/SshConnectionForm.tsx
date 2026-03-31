@@ -52,29 +52,42 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
     });
   useUnsavedChanges(isDirty);
 
-  function validateField(fieldName: string, value: string | number | null | undefined) {
-    let error = '';
+  function getFieldError(fieldName: string, value: string | number | null | undefined): string {
     switch (fieldName) {
       case 'source_server_id':
         if (!value || !String(value).trim()) {
-          error = 'Source server is required';
+          return 'Source server is required';
         }
         break;
       case 'target_server_id':
         if (!value || !String(value).trim()) {
-          error = 'Target server is required';
+          return 'Target server is required';
         }
         break;
       case 'ssh_port':
         if (value !== null && value !== undefined && String(value).trim() !== '') {
           const portNum = Number(value);
           if (portNum < 1 || portNum > 65535) {
-            error = 'SSH port must be between 1 and 65535';
+            return 'SSH port must be between 1 and 65535';
           }
         }
         break;
     }
-    setFieldErrors((prev) => ({ ...prev, [fieldName]: error }));
+    return '';
+  }
+
+  function validateField(fieldName: string, value: string | number | null | undefined) {
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: getFieldError(fieldName, value) }));
+  }
+
+  function clearFieldErrorIfValid(fieldName: string, value: string | number | null | undefined) {
+    if (fieldErrors[fieldName] && !getFieldError(fieldName, value)) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[fieldName];
+        return next;
+      });
+    }
   }
 
   if (serversLoading || keysLoading) {
@@ -126,6 +139,7 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
     if (value === targetServerId) {
       setTargetServerId('');
     }
+    clearFieldErrorIfValid('source_server_id', value);
   };
 
   return (
@@ -144,7 +158,7 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
       <Select
         label="Target Server"
         value={targetServerId}
-        onChange={(e) => setTargetServerId(e.target.value)}
+        onChange={(e) => { setTargetServerId(e.target.value); clearFieldErrorIfValid('target_server_id', e.target.value); }}
         onBlur={(e) => validateField('target_server_id', e.target.value)}
         error={fieldErrors.target_server_id}
         options={targetOptions}
@@ -170,7 +184,7 @@ export default function SshConnectionForm({ initialData, onSubmit, loading, erro
         label="SSH Port"
         type="number"
         value={sshPort}
-        onChange={(e) => setSshPort(e.target.value)}
+        onChange={(e) => { setSshPort(e.target.value); clearFieldErrorIfValid('ssh_port', e.target.value); }}
         onBlur={(e) => validateField('ssh_port', e.target.value)}
         error={fieldErrors.ssh_port}
         min={1}

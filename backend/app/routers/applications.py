@@ -8,6 +8,7 @@ from app.crud import application_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
 from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
+from app.services.webhook_dispatcher import dispatch_event
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -61,6 +62,10 @@ async def create_application(request: Request, data: ApplicationCreate, db: Asyn
         await activity_crud.log_activity(db, "application", app.id, data.name, "created")
     except Exception:
         logger.warning("Failed to log activity for application create %s", app.id, exc_info=True)
+    try:
+        await dispatch_event(db, "application.created", {"id": app.id, "name": data.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for application create %s", app.id, exc_info=True)
     return ApplicationRead.model_validate({
         **app.__dict__,
         "server_name": app.server.name if app.server else None,
@@ -81,6 +86,10 @@ async def update_application(request: Request, id: int, data: ApplicationUpdate,
         await activity_crud.log_activity(db, "application", id, data.name or app.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for application update %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "application.updated", {"id": id, "name": app.name, "changes": changes})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for application update %s", id, exc_info=True)
     return ApplicationRead.model_validate({
         **app.__dict__,
         "server_name": app.server.name if app.server else None,
@@ -98,3 +107,7 @@ async def delete_application(request: Request, id: int, db: AsyncSession = Depen
         await activity_crud.log_activity(db, "application", id, app.name, "deleted")
     except Exception:
         logger.warning("Failed to log activity for application delete %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "application.deleted", {"id": id, "name": app.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for application delete %s", id, exc_info=True)

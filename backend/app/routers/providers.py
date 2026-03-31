@@ -8,6 +8,7 @@ from app.crud import provider_crud
 from app.crud.activity import activity_crud
 from app.limiter import limiter
 from app.routers.utils import BulkDeleteRequest, bulk_delete_entities, compute_changes
+from app.services.webhook_dispatcher import dispatch_event
 
 logger = logging.getLogger(__name__)
 from app.database import get_db
@@ -52,6 +53,10 @@ async def create_provider(request: Request, data: ProviderCreate, db: AsyncSessi
         await activity_crud.log_activity(db, "provider", created.id, data.name, "created")
     except Exception:
         logger.warning("Failed to log activity for provider create %s", created.id, exc_info=True)
+    try:
+        await dispatch_event(db, "provider.created", {"id": created.id, "name": data.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for provider create %s", created.id, exc_info=True)
     return created
 
 
@@ -68,6 +73,10 @@ async def update_provider(request: Request, id: int, data: ProviderUpdate, db: A
         await activity_crud.log_activity(db, "provider", id, data.name or updated.name, "updated", changes or update_fields)
     except Exception:
         logger.warning("Failed to log activity for provider update %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "provider.updated", {"id": id, "name": updated.name, "changes": changes})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for provider update %s", id, exc_info=True)
     return updated
 
 
@@ -82,6 +91,10 @@ async def delete_provider(request: Request, id: int, db: AsyncSession = Depends(
         await activity_crud.log_activity(db, "provider", id, provider.name, "deleted")
     except Exception:
         logger.warning("Failed to log activity for provider delete %s", id, exc_info=True)
+    try:
+        await dispatch_event(db, "provider.deleted", {"id": id, "name": provider.name})
+    except Exception:
+        logger.warning("Failed to dispatch webhook for provider delete %s", id, exc_info=True)
 
 
 @router.get("/{id}/servers", response_model=list[ServerRead])

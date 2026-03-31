@@ -223,6 +223,17 @@ function ServersPageContent() {
     }
   }
 
+  async function handleBulkAudit() {
+    try {
+      const result = await api.bulkMarkAudited(Array.from(selectedIds));
+      addToast('success', `Marked ${result.updated} server(s) as audited`);
+      setSelectedIds(new Set());
+      refetch();
+    } catch {
+      addToast('error', 'Failed to mark servers as audited');
+    }
+  }
+
   function handleCompare() {
     const ids = Array.from(selectedIds).slice(0, 5);
     router.push(`/servers/compare?ids=${ids.join(',')}`);
@@ -252,6 +263,9 @@ function ServersPageContent() {
           )}
           {selectedIds.size > 0 && (
             <Button variant="secondary" onClick={() => setShowBulkEdit(true)}>Edit ({selectedIds.size})</Button>
+          )}
+          {selectedIds.size > 0 && (
+            <Button variant="secondary" onClick={handleBulkAudit}>Audit ({selectedIds.size})</Button>
           )}
           {selectedIds.size > 0 && (
             <Button variant="danger" onClick={() => setShowBulkDelete(true)}>Delete ({selectedIds.size})</Button>

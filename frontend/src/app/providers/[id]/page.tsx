@@ -155,20 +155,69 @@ export default function ProviderDetailPage() {
               if (s.status === 'active') activeCount++;
             }
             const currencies = Object.entries(costByCurrency);
-            if (currencies.length === 0) return null;
+            const budget = provider.monthly_budget;
+            const budgetCurrency = provider.budget_currency || 'EUR';
+            const totalCostInBudgetCurrency = costByCurrency[budgetCurrency] || 0;
+            const utilizationPct = budget && budget > 0 ? (totalCostInBudgetCurrency / budget) * 100 : null;
             return (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {currencies.map(([currency, total]) => (
-                  <div key={currency} className="rounded-lg border border-gray-200 bg-white p-4 border-l-4 border-l-blue-500">
-                    <p className="text-sm font-medium text-gray-500">Monthly Cost ({currency})</p>
-                    <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCost(total, currency)}</p>
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {currencies.map(([currency, total]) => (
+                    <div key={currency} className="rounded-lg border border-gray-200 bg-white p-4 border-l-4 border-l-blue-500">
+                      <p className="text-sm font-medium text-gray-500">Monthly Cost ({currency})</p>
+                      <p className="mt-1 text-2xl font-semibold text-gray-900">{formatCost(total, currency)}</p>
+                    </div>
+                  ))}
+                  <div className="rounded-lg border border-gray-200 bg-white p-4 border-l-4 border-l-green-500">
+                    <p className="text-sm font-medium text-gray-500">Active Servers</p>
+                    <p className="mt-1 text-2xl font-semibold text-gray-900">{activeCount} / {servers.length}</p>
                   </div>
-                ))}
-                <div className="rounded-lg border border-gray-200 bg-white p-4 border-l-4 border-l-green-500">
-                  <p className="text-sm font-medium text-gray-500">Active Servers</p>
-                  <p className="mt-1 text-2xl font-semibold text-gray-900">{activeCount} / {servers.length}</p>
                 </div>
-              </div>
+                {budget != null && budget > 0 && utilizationPct != null && (
+                  <Card title="Budget Utilization">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">
+                          {formatCost(totalCostInBudgetCurrency, budgetCurrency)} of {formatCost(budget, budgetCurrency)}
+                        </span>
+                        <span className={`font-medium ${utilizationPct > 100 ? 'text-red-600' : utilizationPct >= 80 ? 'text-amber-600' : 'text-green-600'}`}>
+                          {utilizationPct.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className={`h-full rounded-full transition-all ${utilizationPct > 100 ? 'bg-red-500' : utilizationPct >= 80 ? 'bg-amber-500' : 'bg-green-500'}`}
+                          style={{ width: `${Math.min(utilizationPct, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                )}
+                {servers.some(s => s.monthly_cost != null) && (
+                  <Card title="Cost Breakdown by Server" noPadding>
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium text-gray-500">Server</th>
+                          <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
+                          <th className="px-4 py-2 text-right font-medium text-gray-500">Monthly Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {[...servers].filter(s => s.monthly_cost != null).sort((a, b) => Number(b.monthly_cost) - Number(a.monthly_cost)).map(s => (
+                          <tr key={s.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2">
+                              <Link href={`/servers/${s.id}`} className="text-blue-600 hover:underline">{s.name}</Link>
+                            </td>
+                            <td className="px-4 py-2"><StatusBadge status={s.status} /></td>
+                            <td className="px-4 py-2 text-right">{formatCost(s.monthly_cost, s.cost_currency)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                )}
+              </>
             );
           })()}
 

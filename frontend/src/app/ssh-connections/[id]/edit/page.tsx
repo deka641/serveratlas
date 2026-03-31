@@ -36,7 +36,7 @@ export default function EditSshConnectionPage() {
   };
 
   return (
-    <PageContainer title="Edit SSH Connection" breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: 'SSH Connection', href: `/ssh-connections/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
+    <PageContainer title="Edit SSH Connection" breadcrumbs={[{ label: 'SSH Connections', href: '/ssh-connections' }, { label: conn ? `${conn.source_server_name} \u2192 ${conn.target_server_name}` : 'SSH Connection', href: `/ssh-connections/${id}` }, { label: 'Edit' }]} loading={fetching} error={error}>
       {conn && (
         <Card>
           <SshConnectionForm initialData={conn} onSubmit={handleSubmit} loading={saving} error={formError} />

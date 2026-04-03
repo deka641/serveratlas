@@ -35,6 +35,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           rows={4}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
+          aria-required={rest.required || undefined}
           {...rest}
         />
         {error && <p id={errorId} role="alert" className="mt-1 text-sm text-red-600">{error}</p>}

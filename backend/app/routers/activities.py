@@ -40,7 +40,7 @@ async def list_activities(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=0, le=500),
+    limit: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ):
     activities = await activity_crud.get_multi(

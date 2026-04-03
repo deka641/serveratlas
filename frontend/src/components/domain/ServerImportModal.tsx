@@ -124,6 +124,9 @@ export default function ServerImportModal({ open, onClose, onComplete }: ServerI
 
       const result = await api.importServers({ servers, skip_duplicates: skipDuplicates });
       addToast('success', `Import complete: ${result.created} created, ${result.skipped} skipped`);
+      if (result.warnings?.length > 0) {
+        addToast('error', `${result.warnings.length} warning(s): ${result.warnings[0]}${result.warnings.length > 1 ? ` (+${result.warnings.length - 1} more)` : ''}`);
+      }
       if (result.errors.length > 0) {
         addToast('error', `${result.errors.length} error(s): ${result.errors[0]}`);
       }

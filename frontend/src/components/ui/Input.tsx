@@ -34,6 +34,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           } disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 ${className}`}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
+          aria-required={rest.required || undefined}
           {...rest}
         />
         {error && <p id={errorId} role="alert" className="mt-1 text-sm text-red-600">{error}</p>}

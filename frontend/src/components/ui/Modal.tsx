@@ -18,7 +18,7 @@ export default function Modal({ open, onClose, title, children, className = '', 
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && open) {
+      if (e.key === 'Escape' && open && dismissable) {
         onClose();
       }
     }

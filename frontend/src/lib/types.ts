@@ -306,3 +306,16 @@ export interface UptimeStats {
   avg_response_ms: number | null;
   period_days: number;
 }
+
+export interface InfrastructureSnapshot {
+  id: number;
+  snapshot_date: string;
+  total_servers: number;
+  active_servers: number;
+  healthy_count: number;
+  unhealthy_count: number;
+  total_monthly_cost: number | null;
+  backup_coverage_pct: number | null;
+  documentation_coverage_pct: number | null;
+  audit_compliance_pct: number | null;
+}

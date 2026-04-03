@@ -44,7 +44,7 @@ def _backup_to_read(b) -> dict:
 
 @router.get("")
 async def list_backups(
-    skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
+    skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500),
     source_server_id: int | None = None, application_id: int | None = None,
     status: str | None = None, search: str | None = None,
     db: AsyncSession = Depends(get_db),

@@ -41,6 +41,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           } disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 ${className}`}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
+          aria-required={rest.required || undefined}
           {...rest}
         >
           {placeholder && (

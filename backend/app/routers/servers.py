@@ -58,7 +58,7 @@ def _server_to_read(server) -> dict:
 
 @router.get("")
 async def list_servers(
-    skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
+    skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500),
     status: str | None = None, provider_id: int | None = None, search: str | None = None,
     tag_id: int | None = None, stale: bool | None = None,
     ram_min: int | None = None, ram_max: int | None = None,
@@ -109,6 +109,7 @@ class ImportResult(BaseModel):
     created: int = 0
     skipped: int = 0
     errors: list[str] = []
+    warnings: list[str] = []
 
 
 BULK_UPDATE_ALLOWED_FIELDS = {"status", "provider_id", "location", "datacenter"}
@@ -180,7 +181,11 @@ async def import_servers(request: Request, body: ServerImportRequest, db: AsyncS
                         continue
 
                 # Resolve provider by name from pre-loaded map
-                provider_id = provider_map.get(item.provider_name) if item.provider_name else None
+                provider_id = None
+                if item.provider_name:
+                    provider_id = provider_map.get(item.provider_name)
+                    if provider_id is None:
+                        result.warnings.append(f"Provider '{item.provider_name}' not found for server '{item.name}' — imported without provider")
 
                 server_data = {
                     "name": item.name,
@@ -541,8 +546,10 @@ async def batch_health_check(request: Request, db: AsyncSession = Depends(get_db
             return
         async with semaphore:
             try:
-                old_status = srv.last_check_status
                 s, rt = await _check_single_server(host)
+                # Re-fetch current status atomically before update to avoid stale reads
+                fresh = await server_crud.get(db, srv.id)
+                old_status = fresh.last_check_status if fresh else srv.last_check_status
                 await server_crud.update(db, srv.id, {
                     "last_checked_at": datetime.utcnow(),
                     "last_check_status": s,

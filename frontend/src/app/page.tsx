@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { useData } from '@/hooks/useData';
 import { formatDateTime } from '@/lib/formatters';
 import { useState, useEffect, useCallback } from 'react';
-import type { Activity, CostByTag, OverdueBackup } from '@/lib/types';
+import type { Activity, CostByTag, InfrastructureSnapshot, OverdueBackup } from '@/lib/types';
 import PageContainer from '@/components/PageContainer';
 import StatsCards from '@/components/domain/StatsCards';
 import ServerStatusGrid from '@/components/domain/ServerStatusGrid';
@@ -16,6 +16,7 @@ import EfficiencyMetrics from '@/components/domain/EfficiencyMetrics';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import SectionSkeleton from '@/components/ui/SectionSkeleton';
+import WidgetError from '@/components/ui/WidgetError';
 import { useToast } from '@/components/ui/Toast';
 
 export default function DashboardPage() {
@@ -83,6 +84,27 @@ export default function DashboardPage() {
     refetch: refetchDocCoverage,
   } = useData(() => api.getDocumentationCoverage());
 
+  const {
+    data: snapshots,
+    loading: snapshotsLoading,
+    refetch: refetchSnapshots,
+  } = useData(() => api.listSnapshots({ days: 30 }));
+
+  const [snapshotCreating, setSnapshotCreating] = useState(false);
+
+  async function handleCreateSnapshot() {
+    setSnapshotCreating(true);
+    try {
+      await api.createSnapshot();
+      addToast('success', 'Infrastructure snapshot captured');
+      refetchSnapshots();
+    } catch (e: unknown) {
+      addToast('error', e instanceof Error ? e.message : 'Failed to create snapshot');
+    } finally {
+      setSnapshotCreating(false);
+    }
+  }
+
   const [batchChecking, setBatchChecking] = useState(false);
   const [autoHealthCheck, setAutoHealthCheck] = useState<number | null>(() => {
     if (typeof window !== 'undefined') {
@@ -127,8 +149,9 @@ export default function DashboardPage() {
     refetchCostByTag();
     refetchHealthSummary();
     refetchDocCoverage();
+    refetchSnapshots();
     setLastUpdated(new Date());
-  }, [refetchStats, refetchCost, refetchServers, refetchBackups, refetchCoverage, refetchOverdue, refetchActivities, refetchCostByTag, refetchHealthSummary, refetchDocCoverage]);
+  }, [refetchStats, refetchCost, refetchServers, refetchBackups, refetchCoverage, refetchOverdue, refetchActivities, refetchCostByTag, refetchHealthSummary, refetchDocCoverage, refetchSnapshots]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -190,15 +213,12 @@ export default function DashboardPage() {
   const activities = activitiesResult?.items ?? null;
 
   const servers = serversResult?.items ?? null;
-  const error = statsError || costError || serversError;
 
   const allZero = stats && stats.total_servers === 0 && stats.total_providers === 0 && stats.total_applications === 0;
 
   return (
     <PageContainer
       title="Dashboard"
-      error={error}
-      onRetry={refetchStats}
       action={
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">
@@ -267,6 +287,8 @@ export default function DashboardPage() {
           </h2>
           {statsLoading || coverageLoading ? (
             <SectionSkeleton height="h-24" />
+          ) : statsError ? (
+            <WidgetError message={statsError} onRetry={refetchStats} />
           ) : stats ? (
             <StatsCards stats={stats} backupCoverage={backupCoverage ?? undefined} />
           ) : null}
@@ -278,6 +300,8 @@ export default function DashboardPage() {
           </h2>
           {costLoading ? (
             <SectionSkeleton height="h-48" />
+          ) : costError ? (
+            <WidgetError message={costError} onRetry={refetchCost} />
           ) : costSummary ? (
             <CostOverview costSummary={costSummary} />
           ) : null}
@@ -370,6 +394,96 @@ export default function DashboardPage() {
 
         {/* Documentation Coverage */}
         <DocumentationCoverage loading={docCoverageLoading} coverage={docCoverage} refetch={refetchDocCoverage} />
+
+        {/* Infrastructure Trend */}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Infrastructure Trend</h2>
+            <Button variant="secondary" size="sm" onClick={handleCreateSnapshot} disabled={snapshotCreating}>
+              {snapshotCreating ? 'Capturing...' : 'Take Snapshot'}
+            </Button>
+          </div>
+          {snapshotsLoading ? (
+            <SectionSkeleton height="h-32" />
+          ) : snapshots && snapshots.length > 0 ? (
+            <Card>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {(() => {
+                    const latest = snapshots[snapshots.length - 1];
+                    const prev = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null;
+                    const delta = (curr: number, old: number | null | undefined) =>
+                      old != null ? curr - old : null;
+                    const fmt = (d: number | null) =>
+                      d === null ? '' : d > 0 ? ` (+${d})` : d < 0 ? ` (${d})` : '';
+                    return (
+                      <>
+                        <div>
+                          <p className="text-xs text-gray-500">Servers</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {latest.total_servers}
+                            <span className="text-xs font-normal text-gray-400">{fmt(delta(latest.total_servers, prev?.total_servers))}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Monthly Cost</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {latest.total_monthly_cost != null ? `${latest.total_monthly_cost.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '\u2014'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Backup Coverage</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {latest.backup_coverage_pct != null ? `${latest.backup_coverage_pct}%` : '\u2014'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Audit Compliance</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {latest.audit_compliance_pct != null ? `${latest.audit_compliance_pct}%` : '\u2014'}
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                {/* Mini sparkline using CSS bars */}
+                {snapshots.length > 1 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Health trend ({snapshots.length} snapshots)</p>
+                    <div className="flex items-end gap-px h-10">
+                      {snapshots.map((s: InfrastructureSnapshot) => {
+                        const total = s.healthy_count + s.unhealthy_count;
+                        const healthPct = total > 0 ? (s.healthy_count / total) * 100 : 0;
+                        return (
+                          <div
+                            key={s.id}
+                            className="flex-1 rounded-t print-color-exact"
+                            style={{
+                              height: `${Math.max(healthPct, 5)}%`,
+                              backgroundColor: healthPct >= 80 ? '#22c55e' : healthPct >= 50 ? '#f59e0b' : '#ef4444',
+                            }}
+                            title={`${new Date(s.snapshot_date).toLocaleDateString()}: ${s.healthy_count}/${total} healthy (${Math.round(healthPct)}%)`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-gray-400">
+                  Latest: {new Date(snapshots[snapshots.length - 1].snapshot_date).toLocaleString()}
+                  {snapshots.length > 1 && ` \u00b7 ${snapshots.length} snapshots in last 30 days`}
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <Card>
+              <p className="text-sm text-gray-500">
+                No snapshots yet. Take your first snapshot to start tracking infrastructure trends.
+              </p>
+            </Card>
+          )}
+        </section>
 
         {/* Cost by Tag (#18) */}
         {!costByTagLoading && costByTag && costByTag.length > 0 && (
@@ -504,6 +618,8 @@ export default function DashboardPage() {
           </h2>
           {serversLoading ? (
             <SectionSkeleton height="h-48" />
+          ) : serversError ? (
+            <WidgetError message={serversError} onRetry={refetchServers} />
           ) : servers && servers.length > 0 ? (
             <ServerStatusGrid servers={servers} />
           ) : (

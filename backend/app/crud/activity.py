@@ -87,14 +87,14 @@ class ActivityCRUD:
         return result.scalar() or 0
 
     async def delete_older_than(self, db: AsyncSession, days: int) -> int:
+        from sqlalchemy import delete as sql_delete
+
         cutoff = datetime.utcnow() - timedelta(days=days)
-        stmt = select(func.count(Activity.id)).where(Activity.created_at < cutoff)
-        count = (await db.execute(stmt)).scalar() or 0
-        if count > 0:
-            from sqlalchemy import delete as sql_delete
-            await db.execute(sql_delete(Activity).where(Activity.created_at < cutoff))
-            await db.flush()
-        return count
+        result = await db.execute(
+            sql_delete(Activity).where(Activity.created_at < cutoff)
+        )
+        await db.flush()
+        return result.rowcount
 
     async def get_stats(self, db: AsyncSession) -> dict:
         total = (await db.execute(select(func.count(Activity.id)))).scalar() or 0

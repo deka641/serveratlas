@@ -19,7 +19,7 @@ router = APIRouter(prefix="/applications", tags=["applications"])
 
 @router.get("")
 async def list_applications(
-    skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500),
+    skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500),
     server_id: int | None = None, status: str | None = None,
     search: str | None = None,
     db: AsyncSession = Depends(get_db),

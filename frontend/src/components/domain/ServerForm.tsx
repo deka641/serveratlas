@@ -116,6 +116,15 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
           }
         }
         break;
+      case 'cpu_cores':
+      case 'ram_mb':
+      case 'disk_gb':
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          if (Number(value) < 1 || !Number.isInteger(Number(value))) {
+            return `${fieldName === 'cpu_cores' ? 'CPU cores' : fieldName === 'ram_mb' ? 'RAM' : 'Disk'} must be a positive integer`;
+          }
+        }
+        break;
       case 'monthly_cost':
         if (value !== null && value !== undefined && String(value).trim() !== '') {
           if (Number(value) < 0) {
@@ -279,21 +288,27 @@ export default function ServerForm({ initialData, onSubmit, loading, error }: Se
             type="number"
             min={1}
             value={cpuCores}
-            onChange={(e) => setCpuCores(e.target.value)}
+            onChange={(e) => { setCpuCores(e.target.value); clearFieldErrorIfValid('cpu_cores', e.target.value); }}
+            onBlur={(e) => validateField('cpu_cores', e.target.value)}
+            error={fieldErrors.cpu_cores}
           />
           <Input
             label="RAM (MB)"
             type="number"
             min={1}
             value={ramMb}
-            onChange={(e) => setRamMb(e.target.value)}
+            onChange={(e) => { setRamMb(e.target.value); clearFieldErrorIfValid('ram_mb', e.target.value); }}
+            onBlur={(e) => validateField('ram_mb', e.target.value)}
+            error={fieldErrors.ram_mb}
           />
           <Input
             label="Disk (GB)"
             type="number"
             min={1}
             value={diskGb}
-            onChange={(e) => setDiskGb(e.target.value)}
+            onChange={(e) => { setDiskGb(e.target.value); clearFieldErrorIfValid('disk_gb', e.target.value); }}
+            onBlur={(e) => validateField('disk_gb', e.target.value)}
+            error={fieldErrors.disk_gb}
           />
         </div>
       </fieldset>

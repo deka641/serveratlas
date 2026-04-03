@@ -19,7 +19,7 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 @router.get("")
-async def list_providers(skip: int = Query(0, ge=0), limit: int = Query(100, ge=0, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
+async def list_providers(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500), search: str | None = None, db: AsyncSession = Depends(get_db)):
     rows = await provider_crud.get_multi(db, skip=skip, limit=limit, search=search)
     total = await provider_crud.count_filtered(db, search=search)
     result = []

@@ -21,7 +21,7 @@ router = APIRouter(prefix="/tags", tags=["tags"])
 @router.get("")
 async def list_tags(
     skip: int = Query(0, ge=0),
-    limit: int = Query(500, ge=0, le=500),
+    limit: int = Query(500, ge=1, le=500),
     search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):

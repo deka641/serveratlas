@@ -2,9 +2,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://serveratlas:serveratlas_secret@db:5432/serveratlas"
-    DATABASE_URL_SYNC: str = "postgresql+psycopg2://serveratlas:serveratlas_secret@db:5432/serveratlas"
-    CORS_ORIGINS: str = "*"
+    DATABASE_URL: str
+    DATABASE_URL_SYNC: str
+    CORS_ORIGINS: str
 
     class Config:
         env_file = ".env"

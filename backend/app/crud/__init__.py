@@ -9,6 +9,7 @@ from app.crud.tag import tag_crud
 from app.crud.activity import activity_crud
 from app.crud.health_check import health_check_crud
 from app.crud.webhook import webhook_crud
+from app.crud.snapshot import snapshot_crud
 
 __all__ = [
     "provider_crud",
@@ -22,4 +23,5 @@ __all__ = [
     "activity_crud",
     "health_check_crud",
     "webhook_crud",
+    "snapshot_crud",
 ]

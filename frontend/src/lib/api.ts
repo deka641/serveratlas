@@ -69,7 +69,7 @@ async function requestPaginated<T>(path: string, options?: RequestInit): Promise
 
 import type {
   Activity, Application, Backup, BackupCoverage, BatchHealthCheckResult, BulkUpdateResult, ConnectivityGraph, CostByTag, CostSummary,
-  DashboardStats, DocumentationCoverage, EfficiencyMetric, HealthCheckRecord, HealthSummary, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
+  DashboardStats, DocumentationCoverage, EfficiencyMetric, HealthCheckRecord, HealthSummary, InfrastructureSnapshot, OverdueBackup, Provider, ProviderWithServers, RecentBackup, Server,
   ServerDetail, ServerSshKey, SshConnection, SshKey, SshKeyWithServers, Tag, UptimeStats, Webhook,
 } from './types';
 
@@ -128,7 +128,7 @@ export const api = {
   removeServerSshKey: (serverId: number, keyId: number) =>
     request<void>(`/servers/${serverId}/ssh-keys/${keyId}`, { method: 'DELETE' }),
   importServers: (data: { servers: Array<{ name: string; hostname?: string; ip_v4?: string; os?: string; provider_name?: string; status?: string; location?: string; [key: string]: unknown }>; skip_duplicates?: boolean }) =>
-    request<{ created: number; skipped: number; errors: string[] }>('/servers/import', { method: 'POST', body: JSON.stringify(data) }),
+    request<{ created: number; skipped: number; errors: string[]; warnings: string[] }>('/servers/import', { method: 'POST', body: JSON.stringify(data) }),
   markServerAudited: (id: number, data?: { audited_by?: string }) =>
     request<Server>(`/servers/${id}/mark-audited`, { method: 'POST', body: JSON.stringify(data || {}) }),
   bulkMarkAudited: (ids: number[], audited_by?: string) =>
@@ -285,4 +285,13 @@ export const api = {
   updateWebhook: (id: number, data: Partial<Webhook>) => request<Webhook>(`/webhooks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteWebhook: (id: number) => request<void>(`/webhooks/${id}`, { method: 'DELETE' }),
   testWebhook: (id: number) => request<{ status: string }>(`/webhooks/${id}/test`, { method: 'POST' }),
+
+  // Snapshots
+  createSnapshot: () => request<InfrastructureSnapshot>('/snapshots', { method: 'POST' }),
+  listSnapshots: (params?: { days?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.days) qs.set('days', String(params.days));
+    const query = qs.toString();
+    return request<InfrastructureSnapshot[]>(`/snapshots${query ? `?${query}` : ''}`);
+  },
 };

@@ -14,7 +14,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import engine
 from app.limiter import limiter
-from app.routers import activities, applications, backups, dashboard, health_checks, providers, servers, ssh_connections, ssh_keys, tags, webhooks
+from app.routers import activities, applications, backups, dashboard, health_checks, providers, servers, snapshots, ssh_connections, ssh_keys, tags, webhooks
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,7 @@ app.include_router(tags.router, prefix=API_PREFIX)
 app.include_router(activities.router, prefix=API_PREFIX)
 app.include_router(health_checks.router, prefix=API_PREFIX)
 app.include_router(webhooks.router, prefix=API_PREFIX)
+app.include_router(snapshots.router, prefix=API_PREFIX)
 
 
 @app.exception_handler(IntegrityError)
